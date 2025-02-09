@@ -20,11 +20,10 @@ use OpenTelemetry\SDK\Metrics\Data\Sum;
 use OpenTelemetry\SDK\Metrics\Data\Temporality;
 use OpenTelemetry\SDK\Resource\ResourceInfo;
 use OpenTelemetry\SDK\Resource\ResourceInfoFactory;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \OpenTelemetry\Contrib\Otlp\MetricConverter
- */
+#[CoversClass(MetricConverter::class)]
 final class MetricConverterTest extends TestCase
 {
     public function test_empty_batch_returns_empty_request(): void
@@ -108,8 +107,8 @@ final class MetricConverterTest extends TestCase
                     null,
                     new Sum([
                         new NumberDataPoint(5, Attributes::create(['foo' => 'bar']), 17, 42, [
-                            new Exemplar(.5, 19, Attributes::create(['key' => 'value']), null, null),
-                            new Exemplar(-3, 37, Attributes::create(['key' => 'other']), '4bf92f3577b34da6a3ce929d0e0e4736', '00f067aa0ba902b7'),
+                            new Exemplar(0, .5, 19, Attributes::create(['key' => 'value']), null, null),
+                            new Exemplar(0, -3, 37, Attributes::create(['key' => 'other']), '4bf92f3577b34da6a3ce929d0e0e4736', '00f067aa0ba902b7'),
                         ]),
                     ], Temporality::DELTA, false)
                 ),
@@ -139,8 +138,8 @@ final class MetricConverterTest extends TestCase
                     null,
                     new Histogram([
                         new HistogramDataPoint(5, 9, -2, 8, [5], [], Attributes::create(['foo' => 'bar']), 17, 42, [
-                            new Exemplar(.5, 19, Attributes::create(['key' => 'value']), null, null),
-                            new Exemplar(-3, 37, Attributes::create(['key' => 'other']), '4bf92f3577b34da6a3ce929d0e0e4736', '00f067aa0ba902b7'),
+                            new Exemplar(0, .5, 19, Attributes::create(['key' => 'value']), null, null),
+                            new Exemplar(0, -3, 37, Attributes::create(['key' => 'other']), '4bf92f3577b34da6a3ce929d0e0e4736', '00f067aa0ba902b7'),
                         ]),
                     ], Temporality::DELTA)
                 ),
@@ -170,8 +169,8 @@ final class MetricConverterTest extends TestCase
                     null,
                     new Gauge([
                         new NumberDataPoint(5, Attributes::create(['foo' => 'bar']), 17, 42, [
-                            new Exemplar(.5, 19, Attributes::create(['key' => 'value']), null, null),
-                            new Exemplar(-3, 37, Attributes::create(['key' => 'other']), '4bf92f3577b34da6a3ce929d0e0e4736', '00f067aa0ba902b7'),
+                            new Exemplar(0, .5, 19, Attributes::create(['key' => 'value']), null, null),
+                            new Exemplar(0, -3, 37, Attributes::create(['key' => 'other']), '4bf92f3577b34da6a3ce929d0e0e4736', '00f067aa0ba902b7'),
                         ]),
                     ])
                 ),

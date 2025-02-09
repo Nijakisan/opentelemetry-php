@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+
+namespace OpenTelemetry\Example;
+
 require __DIR__ . '/../../../vendor/autoload.php';
 
 use OpenTelemetry\Contrib\Zipkin\Exporter as ZipkinExporter;
@@ -14,8 +17,7 @@ $sampler = new AlwaysOnSampler();
 
 // zipkin exporter
 $zipkinExporter = new ZipkinExporter(
-    $serviceName,
-    PsrTransportFactory::discover()->create('http://zipkin:9411/api/v2/spans')
+    (new PsrTransportFactory())->create('http://zipkin:9411/api/v2/spans', 'application/json')
 );
 
 $tracerProvider =  new TracerProvider(
@@ -37,6 +39,7 @@ try {
     $internalScope = $span1->activate(); // set the child span active in the context
 
     try {
+        /** @psalm-suppress ArgumentTypeCoercion */
         for ($i = 0; $i < 3; $i++) {
             $loopSpan = $tracer->spanBuilder('loop-' . $i)->startSpan();
             usleep((int) (0.5 * 1e6));

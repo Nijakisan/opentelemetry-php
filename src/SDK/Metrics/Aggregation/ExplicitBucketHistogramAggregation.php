@@ -9,13 +9,9 @@ use function count;
 use const INF;
 use const NAN;
 use OpenTelemetry\Context\ContextInterface;
-use OpenTelemetry\SDK\Common\Attribute\AttributesFactoryInterface;
 use OpenTelemetry\SDK\Common\Attribute\AttributesInterface;
 use OpenTelemetry\SDK\Metrics\AggregationInterface;
 use OpenTelemetry\SDK\Metrics\Data;
-use OpenTelemetry\SDK\Metrics\Exemplar\ExemplarReservoirInterface;
-use OpenTelemetry\SDK\Metrics\Exemplar\FixedSizeReservoir;
-use OpenTelemetry\SDK\Metrics\Exemplar\HistogramBucketReservoir;
 
 /**
  * @implements AggregationInterface<ExplicitBucketHistogramSummary>
@@ -23,17 +19,11 @@ use OpenTelemetry\SDK\Metrics\Exemplar\HistogramBucketReservoir;
 final class ExplicitBucketHistogramAggregation implements AggregationInterface
 {
     /**
-     * @var list<float|int>
-     * @readonly
-     */
-    public array $boundaries;
-
-    /**
      * @param list<float|int> $boundaries strictly ascending histogram bucket boundaries
      */
-    public function __construct(array $boundaries)
-    {
-        $this->boundaries = $boundaries;
+    public function __construct(
+        public readonly array $boundaries,
+    ) {
     }
 
     public function initialize(): ExplicitBucketHistogramSummary
@@ -119,7 +109,7 @@ final class ExplicitBucketHistogramAggregation implements AggregationInterface
         array $exemplars,
         int $startTimestamp,
         int $timestamp,
-        $temporality
+        $temporality,
     ): Data\Histogram {
         $dataPoints = [];
         foreach ($attributes as $key => $dataPointAttributes) {
@@ -147,30 +137,13 @@ final class ExplicitBucketHistogramAggregation implements AggregationInterface
         );
     }
 
-    public function exemplarReservoir(AttributesFactoryInterface $attributesFactory): ExemplarReservoirInterface
-    {
-        return $this->boundaries
-            ? new HistogramBucketReservoir($attributesFactory, $this->boundaries)
-            : new FixedSizeReservoir($attributesFactory);
-    }
-
-    /**
-     * @param float|int $left
-     * @param float|int $right
-     * @return float|int
-     */
-    private static function min($left, $right)
+    private static function min(float|int $left, float|int $right): float|int
     {
         /** @noinspection PhpConditionAlreadyCheckedInspection */
         return $left <= $right ? $left : ($right <= $left ? $right : NAN);
     }
 
-    /**
-     * @param float|int $left
-     * @param float|int $right
-     * @return float|int
-     */
-    private static function max($left, $right)
+    private static function max(float|int $left, float|int $right): float|int
     {
         /** @noinspection PhpConditionAlreadyCheckedInspection */
         return $left >= $right ? $left : ($right >= $left ? $right : NAN);

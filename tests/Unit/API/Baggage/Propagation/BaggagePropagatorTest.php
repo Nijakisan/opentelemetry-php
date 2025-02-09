@@ -8,11 +8,11 @@ use OpenTelemetry\API\Baggage\Baggage;
 use OpenTelemetry\API\Baggage\Metadata;
 use OpenTelemetry\API\Baggage\Propagation\BaggagePropagator;
 use OpenTelemetry\Context\Context;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers OpenTelemetry\API\Baggage\Propagation\BaggagePropagator
- */
+#[CoversClass(BaggagePropagator::class)]
 class BaggagePropagatorTest extends TestCase
 {
     public function test_fields(): void
@@ -84,7 +84,7 @@ class BaggagePropagatorTest extends TestCase
         );
     }
 
-    /** @dataProvider headerProvider */
+    #[DataProvider('headerProvider')]
     public function test_extract(string $header, Baggage $expectedBaggage): void
     {
         $propagator = BaggagePropagator::getInstance();
@@ -97,7 +97,7 @@ class BaggagePropagatorTest extends TestCase
         );
     }
 
-    public function headerProvider(): array
+    public static function headerProvider(): array
     {
         return [
             'key - duplicate key' => ['key=value1,key=value2', Baggage::getBuilder()->set('key', 'value2')->build()],

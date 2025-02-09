@@ -1,15 +1,17 @@
 <?php
 
 declare(strict_types=1);
-require __DIR__ . '/../../../vendor/autoload.php';
 
-\OpenTelemetry\API\Common\Log\LoggerHolder::set(new \Monolog\Logger('grpc', [new \Monolog\Handler\StreamHandler('php://stderr')]));
+namespace OpenTelemetry\Example;
+
+require __DIR__ . '/../../../vendor/autoload.php';
 
 /**
  * Create an otlp+http/protobuf tracer provider from TracerProviderFactory, using environment variables as input
  */
 putenv('OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318');
 putenv('OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf');
+putenv('OTEL_EXPORTER_OTLP_TIMEOUT=1500'); //1.5s
 $factory = new \OpenTelemetry\SDK\Trace\TracerProviderFactory();
 $tracerProvider = $factory->create();
 

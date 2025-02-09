@@ -44,7 +44,7 @@ return [
     //
     // Note that the **only** effect of choosing `'5.6'` is to infer that functions removed in php 7.0 exist.
     // (See `backward_compatibility_checks` for additional options)
-    'target_php_version' => '7.4',
+    'target_php_version' => '8.1',
 
     // If enabled, missing properties will be created when
     // they are first seen. If false, we'll report an
@@ -284,6 +284,7 @@ return [
         'PhanAccessClassInternal',
         'PhanAccessMethodInternal',
         'PhanAccessPropertyInternal',
+        'PhanTypeMismatchPropertyReal',
         'PhanTemplateTypeNotUsedInFunctionReturn',
     ],
 
@@ -319,6 +320,7 @@ return [
     'exclude_analysis_directory_list' => [
         'vendor/',
         'proto/',
+        'src/Config/SDK',
     ],
 
     // Enable this to enable checks of require/include statements referring to valid paths.
@@ -372,11 +374,13 @@ return [
         'vendor/composer',
         'vendor/grpc/grpc/src/lib',
         'vendor/guzzlehttp',
+        'vendor/tbachert/spi/src',
         'vendor/psr',
         'vendor/php-http',
-        'vendor/phan/phan/src/Phan',
         'vendor/phpunit/phpunit/src',
         'vendor/google/protobuf/src',
+        'vendor/ramsey/uuid/src',
+        'vendor/nyholm/psr7-server/src',
     ],
 
     // A list of individual files to include in analysis

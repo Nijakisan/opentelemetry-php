@@ -8,11 +8,10 @@ use OpenTelemetry\API\Trace as API;
 use OpenTelemetry\API\Trace\SpanContext;
 use OpenTelemetry\API\Trace\SpanContextValidator;
 use OpenTelemetry\API\Trace\TraceState;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers OpenTelemetry\API\Trace\SpanContext
- */
+#[CoversClass(SpanContext::class)]
 class SpanContextTest extends TestCase
 {
     private const FIRST_TRACE_ID = '00000000000000000000000000000061';
@@ -26,9 +25,9 @@ class SpanContextTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->first = SpanContext::create(self::FIRST_TRACE_ID, self::FIRST_SPAN_ID, API\SpanContextInterface::TRACE_FLAG_DEFAULT, new TraceState('foo=bar'));
-        $this->second = SpanContext::create(self::SECOND_TRACE_ID, self::SECOND_SPAN_ID, API\SpanContextInterface::TRACE_FLAG_SAMPLED, new TraceState('foo=baz'));
-        $this->remote = SpanContext::createFromRemoteParent(self::SECOND_TRACE_ID, self::SECOND_SPAN_ID, API\SpanContextInterface::TRACE_FLAG_SAMPLED, new TraceState());
+        $this->first = SpanContext::create(self::FIRST_TRACE_ID, self::FIRST_SPAN_ID, API\TraceFlags::DEFAULT, new TraceState('foo=bar'));
+        $this->second = SpanContext::create(self::SECOND_TRACE_ID, self::SECOND_SPAN_ID, API\TraceFlags::SAMPLED, new TraceState('foo=baz'));
+        $this->remote = SpanContext::createFromRemoteParent(self::SECOND_TRACE_ID, self::SECOND_SPAN_ID, API\TraceFlags::SAMPLED, new TraceState());
     }
 
     // region API
@@ -79,8 +78,8 @@ class SpanContextTest extends TestCase
 
     public function test_get_trace_flags(): void
     {
-        $this->assertSame(API\SpanContextInterface::TRACE_FLAG_DEFAULT, $this->first->getTraceFlags());
-        $this->assertSame(API\SpanContextInterface::TRACE_FLAG_SAMPLED, $this->second->getTraceFlags());
+        $this->assertSame(API\TraceFlags::DEFAULT, $this->first->getTraceFlags());
+        $this->assertSame(API\TraceFlags::SAMPLED, $this->second->getTraceFlags());
     }
 
     public function test_get_trace_state(): void

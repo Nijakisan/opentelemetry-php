@@ -41,13 +41,9 @@ final class Baggage implements BaggageInterface
         return self::$emptyBaggage;
     }
 
-    /** @var array<string, Entry> */
-    private array $entries;
-
     /** @param array<string, Entry> $entries */
-    public function __construct(array $entries = [])
+    public function __construct(private readonly array $entries = [])
     {
-        $this->entries = $entries;
     }
 
     /** @inheritDoc */
@@ -83,7 +79,7 @@ final class Baggage implements BaggageInterface
     /** @inheritDoc */
     public function isEmpty(): bool
     {
-        return empty($this->entries);
+        return $this->entries === [];
     }
 
     /** @inheritDoc */

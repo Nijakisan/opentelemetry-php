@@ -7,12 +7,11 @@ namespace OpenTelemetry\Tests\Unit\Context\Propagation;
 use ArrayObject;
 use InvalidArgumentException;
 use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
-/**
- * @covers OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter
- */
+#[CoversClass(ArrayAccessGetterSetter::class)]
 class ArrayAccessGetterSetterTest extends TestCase
 {
     public function test_get_from_map_array(): void
@@ -94,6 +93,9 @@ class ArrayAccessGetterSetterTest extends TestCase
         $this->assertSame('bravo', $value);
     }
 
+    /**
+     * @psalm-suppress InvalidArgument,UndefinedInterfaceMethod,PossiblyInvalidArrayAccess
+     */
     public function test_set_map_array_access_case(): void
     {
         $carrier = new ArrayObject(['A' => 'alpha']);

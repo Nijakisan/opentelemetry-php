@@ -81,29 +81,53 @@ class LogRecord extends \Google\Protobuf\Internal\Message
      * defined in W3C Trace Context specification. 24 most significant bits are reserved
      * and must be set to 0. Readers must not assume that 24 most significant bits
      * will be zero and must correctly mask the bits when reading 8-bit trace flag (use
-     * flags & TRACE_FLAGS_MASK). [Optional].
+     * flags & LOG_RECORD_FLAGS_TRACE_FLAGS_MASK). [Optional].
      *
      * Generated from protobuf field <code>fixed32 flags = 8;</code>
      */
     protected $flags = 0;
     /**
      * A unique identifier for a trace. All logs from the same trace share
-     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     * is considered invalid. Can be set for logs that are part of request processing
-     * and have an assigned trace id. [Optional].
+     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     * of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
+     * This field is optional.
+     * The receivers SHOULD assume that the log record is not associated with a
+     * trace if any of the following is true:
+     *   - the field is not present,
+     *   - the field contains an invalid value.
      *
      * Generated from protobuf field <code>bytes trace_id = 9;</code>
      */
     protected $trace_id = '';
     /**
      * A unique identifier for a span within a trace, assigned when the span
-     * is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     * invalid. Can be set for logs that are part of a particular processing span.
-     * If span_id is present trace_id SHOULD be also present. [Optional].
+     * is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     * other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
+     * This field is optional. If the sender specifies a valid span_id then it SHOULD also
+     * specify a valid trace_id.
+     * The receivers SHOULD assume that the log record is not associated with a
+     * span if any of the following is true:
+     *   - the field is not present,
+     *   - the field contains an invalid value.
      *
      * Generated from protobuf field <code>bytes span_id = 10;</code>
      */
     protected $span_id = '';
+    /**
+     * A unique identifier of event category/type.
+     * All events with the same event_name are expected to conform to the same
+     * schema for both their attributes and their body.
+     * Recommended to be fully qualified and short (no longer than 256 characters).
+     * Presence of event_name on the log record identifies this record
+     * as an event.
+     * [Optional].
+     * Status: [Development]
+     *
+     * Generated from protobuf field <code>string event_name = 12;</code>
+     */
+    protected $event_name = '';
 
     /**
      * Constructor.
@@ -149,17 +173,37 @@ class LogRecord extends \Google\Protobuf\Internal\Message
      *           defined in W3C Trace Context specification. 24 most significant bits are reserved
      *           and must be set to 0. Readers must not assume that 24 most significant bits
      *           will be zero and must correctly mask the bits when reading 8-bit trace flag (use
-     *           flags & TRACE_FLAGS_MASK). [Optional].
+     *           flags & LOG_RECORD_FLAGS_TRACE_FLAGS_MASK). [Optional].
      *     @type string $trace_id
      *           A unique identifier for a trace. All logs from the same trace share
-     *           the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     *           is considered invalid. Can be set for logs that are part of request processing
-     *           and have an assigned trace id. [Optional].
+     *           the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     *           of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     *           is zero-length and thus is also invalid).
+     *           This field is optional.
+     *           The receivers SHOULD assume that the log record is not associated with a
+     *           trace if any of the following is true:
+     *             - the field is not present,
+     *             - the field contains an invalid value.
      *     @type string $span_id
      *           A unique identifier for a span within a trace, assigned when the span
-     *           is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     *           invalid. Can be set for logs that are part of a particular processing span.
-     *           If span_id is present trace_id SHOULD be also present. [Optional].
+     *           is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     *           other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     *           is zero-length and thus is also invalid).
+     *           This field is optional. If the sender specifies a valid span_id then it SHOULD also
+     *           specify a valid trace_id.
+     *           The receivers SHOULD assume that the log record is not associated with a
+     *           span if any of the following is true:
+     *             - the field is not present,
+     *             - the field contains an invalid value.
+     *     @type string $event_name
+     *           A unique identifier of event category/type.
+     *           All events with the same event_name are expected to conform to the same
+     *           schema for both their attributes and their body.
+     *           Recommended to be fully qualified and short (no longer than 256 characters).
+     *           Presence of event_name on the log record identifies this record
+     *           as an event.
+     *           [Optional].
+     *           Status: [Development]
      * }
      */
     public function __construct($data = NULL) {
@@ -400,7 +444,7 @@ class LogRecord extends \Google\Protobuf\Internal\Message
      * defined in W3C Trace Context specification. 24 most significant bits are reserved
      * and must be set to 0. Readers must not assume that 24 most significant bits
      * will be zero and must correctly mask the bits when reading 8-bit trace flag (use
-     * flags & TRACE_FLAGS_MASK). [Optional].
+     * flags & LOG_RECORD_FLAGS_TRACE_FLAGS_MASK). [Optional].
      *
      * Generated from protobuf field <code>fixed32 flags = 8;</code>
      * @return int
@@ -415,7 +459,7 @@ class LogRecord extends \Google\Protobuf\Internal\Message
      * defined in W3C Trace Context specification. 24 most significant bits are reserved
      * and must be set to 0. Readers must not assume that 24 most significant bits
      * will be zero and must correctly mask the bits when reading 8-bit trace flag (use
-     * flags & TRACE_FLAGS_MASK). [Optional].
+     * flags & LOG_RECORD_FLAGS_TRACE_FLAGS_MASK). [Optional].
      *
      * Generated from protobuf field <code>fixed32 flags = 8;</code>
      * @param int $var
@@ -431,9 +475,14 @@ class LogRecord extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a trace. All logs from the same trace share
-     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     * is considered invalid. Can be set for logs that are part of request processing
-     * and have an assigned trace id. [Optional].
+     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     * of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
+     * This field is optional.
+     * The receivers SHOULD assume that the log record is not associated with a
+     * trace if any of the following is true:
+     *   - the field is not present,
+     *   - the field contains an invalid value.
      *
      * Generated from protobuf field <code>bytes trace_id = 9;</code>
      * @return string
@@ -445,9 +494,14 @@ class LogRecord extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a trace. All logs from the same trace share
-     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     * is considered invalid. Can be set for logs that are part of request processing
-     * and have an assigned trace id. [Optional].
+     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     * of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
+     * This field is optional.
+     * The receivers SHOULD assume that the log record is not associated with a
+     * trace if any of the following is true:
+     *   - the field is not present,
+     *   - the field contains an invalid value.
      *
      * Generated from protobuf field <code>bytes trace_id = 9;</code>
      * @param string $var
@@ -463,9 +517,15 @@ class LogRecord extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a span within a trace, assigned when the span
-     * is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     * invalid. Can be set for logs that are part of a particular processing span.
-     * If span_id is present trace_id SHOULD be also present. [Optional].
+     * is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     * other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
+     * This field is optional. If the sender specifies a valid span_id then it SHOULD also
+     * specify a valid trace_id.
+     * The receivers SHOULD assume that the log record is not associated with a
+     * span if any of the following is true:
+     *   - the field is not present,
+     *   - the field contains an invalid value.
      *
      * Generated from protobuf field <code>bytes span_id = 10;</code>
      * @return string
@@ -477,9 +537,15 @@ class LogRecord extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a span within a trace, assigned when the span
-     * is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     * invalid. Can be set for logs that are part of a particular processing span.
-     * If span_id is present trace_id SHOULD be also present. [Optional].
+     * is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     * other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
+     * This field is optional. If the sender specifies a valid span_id then it SHOULD also
+     * specify a valid trace_id.
+     * The receivers SHOULD assume that the log record is not associated with a
+     * span if any of the following is true:
+     *   - the field is not present,
+     *   - the field contains an invalid value.
      *
      * Generated from protobuf field <code>bytes span_id = 10;</code>
      * @param string $var
@@ -489,6 +555,46 @@ class LogRecord extends \Google\Protobuf\Internal\Message
     {
         GPBUtil::checkString($var, False);
         $this->span_id = $var;
+
+        return $this;
+    }
+
+    /**
+     * A unique identifier of event category/type.
+     * All events with the same event_name are expected to conform to the same
+     * schema for both their attributes and their body.
+     * Recommended to be fully qualified and short (no longer than 256 characters).
+     * Presence of event_name on the log record identifies this record
+     * as an event.
+     * [Optional].
+     * Status: [Development]
+     *
+     * Generated from protobuf field <code>string event_name = 12;</code>
+     * @return string
+     */
+    public function getEventName()
+    {
+        return $this->event_name;
+    }
+
+    /**
+     * A unique identifier of event category/type.
+     * All events with the same event_name are expected to conform to the same
+     * schema for both their attributes and their body.
+     * Recommended to be fully qualified and short (no longer than 256 characters).
+     * Presence of event_name on the log record identifies this record
+     * as an event.
+     * [Optional].
+     * Status: [Development]
+     *
+     * Generated from protobuf field <code>string event_name = 12;</code>
+     * @param string $var
+     * @return $this
+     */
+    public function setEventName($var)
+    {
+        GPBUtil::checkString($var, True);
+        $this->event_name = $var;
 
         return $this;
     }

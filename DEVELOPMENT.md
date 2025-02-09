@@ -1,13 +1,12 @@
 ## [Development](DEVELOPMENT.md)
-For repeatability and consistency across different operating systems, we use the [3 Musketeers pattern](https://3musketeers.io/). If you're on Windows, it might be a good idea to use Git bash for following the steps below.
+For repeatability and consistency across different operating systems, we use the [3 Musketeers pattern](https://3musketeers.pages.dev/). If you're on Windows, it might be a good idea to use Git bash for following the steps below.
 
 **Note: After cloning the repository, copy `.env.dist` to `.env`.** 
 
 Skipping the step above would result in a "`The "PHP_USER" variable is not set. Defaulting to a blank string`" warning
 
-We use `docker` and `docker-compose` to perform a lot of our static analysis and testing. If you're planning to develop for this library, it'll help to install `docker engine` and `docker-compose`.
-
-The installation instructions for these tools are [here](https://docs.docker.com/install/), under the `Docker Engine` and `Docker Compose` submenus respectively.
+We use `docker` and `docker compose` to perform a lot of our static analysis and testing. If you're planning to develop for this library, it'll help to install
+[docker engine](https://docs.docker.com/engine/install/) and the [compose plugin](https://docs.docker.com/compose/install/).
 
 Development tasks are generally run through a `Makefile`. Running `make` or `make help` will list available targets.
 
@@ -24,6 +23,18 @@ To update these dependencies, you can run
 
 ```bash
 make update
+```
+
+To downgrade to the lowest dependencies, you can run
+
+```shell
+make update-lowest
+```
+
+To run all checks without doing a composer update:
+
+```shell
+make all-checks
 ```
 
 ## Coding Guidelines
@@ -48,7 +59,8 @@ To ensure your PR doesn't emit a failure with GitHub actions, it's recommended t
 locally with the following command:
 
 ```bash
-make all
+make all # composer update, then run all checks
+make all-lowest # composer update to lowest dependencies, then run all checks
 ```
 
 This does the following things:
@@ -65,14 +77,14 @@ This does the following things:
 ### Other PHP versions
 
 We aim to support officially supported PHP versions, according to https://www.php.net/supported-versions.php. The
-developer image `ghcr.io/open-telemetry/opentelemetry-php/opentelemetry-php-base` is tagged as `7.4`, `8.0` and `8.1`
-respectively, with `7.4` being the default. You can execute the test suite against other PHP versions by running the
+developer image `ghcr.io/open-telemetry/opentelemetry-php/opentelemetry-php-base` is tagged as `8.1`, `8.2` and `8.3`
+respectively, with `8.1` being the default. You can execute the test suite against other PHP versions by running the
 following command:
 
 ```bash
-PHP_VERSION=8.0 make all
-#or
 PHP_VERSION=8.1 make all
+#or
+PHP_VERSION=8.3 make all
 ```
 
 ## Proto Generation
@@ -108,21 +120,21 @@ We use [Rector](https://github.com/rectorphp/rector) to automatically refactor o
 and upgrade the code to supported PHP versions.
 The associated configuration can be found [here](./.rector.php)
 
-To refactor your code following our given standards, you can run:
+If you want to check what changes would be applied by rector, you can run:
 
 ```bash
 make rector
 ```
+This command will simply print out the changes `rector` would make without actually changing any code.
+
+To refactor your code following our given standards, you can run:
+
+```bash
+make rector-write
+```
 
 This command applies the changes to the code base.
 Make sure to run `make style` (see below) after running the `rector`command as the changes might not follow our coding standard.
-
-If you want to simply check what changes would be applied by rector, you can run:
-
-```bash
-make rector-dry
-```
-This command will simply print out the changes `rector`would make without actually changing any code.
 
 ## Styling
 
@@ -206,7 +218,7 @@ To make sure the different components of the library are distributable as separa
 For this purpose we use [Deptrac](https://github.com/qossmic/deptrac) and the respective configuration can be found
 [here](./deptrac.yaml)
 
-To validatethe dependencies inside the code base, you can run:
+To validate the dependencies inside the code base, you can run:
 
 ```bash
 make deptrac
@@ -224,3 +236,21 @@ make phpmetrics
 
 This will generate a HTML PhpMetrics report in the `var/metrics` directory. Make sure to run `make test` before to
 create the test log-file, used by the metrics report.
+
+## API Documentation
+
+We use [phpDocumentor](https://phpdoc.org/) to automatically generate API documentation from DocBlocks in the code.
+
+To generate a recent version of the API documentation, you can run:
+
+```bash
+make phpdoc
+```
+
+To preview the documentation and changes you might expect, you can run:
+
+```bash
+make phpdoc-preview
+```
+
+This will start a HTTP server running at <http://localhost:8080> serving the updated documentation files.

@@ -5,22 +5,22 @@ declare(strict_types=1);
 namespace OpenTelemetry\Tests\Unit\SDK\Trace;
 
 use OpenTelemetry\API\Trace as API;
+use OpenTelemetry\API\Trace\NonRecordingSpan;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers OpenTelemetry\API\Trace\NonRecordingSpan
- */
+#[CoversClass(NonRecordingSpan::class)]
 class NonRecordingSpanTest extends TestCase
 {
     public function test_is_not_recording(): void
     {
-        $this->assertFalse(API\NonRecordingSpan::getInvalid()->isRecording());
+        $this->assertFalse(NonRecordingSpan::getInvalid()->isRecording());
     }
 
     public function test_has_invalid_context_and_default_span_options(): void
     {
-        $context = API\NonRecordingSpan::getInvalid()->getContext();
-        $this->assertSame(API\SpanContextInterface::TRACE_FLAG_DEFAULT, $context->getTraceFlags());
+        $context = NonRecordingSpan::getInvalid()->getContext();
+        $this->assertSame(API\TraceFlags::DEFAULT, $context->getTraceFlags());
         $this->assertNull($context->getTraceState());
     }
 }

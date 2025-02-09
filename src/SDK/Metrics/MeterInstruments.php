@@ -11,17 +11,11 @@ final class MeterInstruments
 {
     public ?int $startTimestamp = null;
     /**
-     * @var array<string, array<string, array{MetricObserverInterface, ReferenceCounterInterface}>>
+     * @var array<string, array<string, array{Instrument, StalenessHandlerInterface&ReferenceCounterInterface, RegisteredInstrument}>>
      */
     public array $observers = [];
     /**
-     * @var array<string, array<string, array{MetricWriterInterface, ReferenceCounterInterface}>>
+     * @var array<string, array<string, array{Instrument, StalenessHandlerInterface&ReferenceCounterInterface, RegisteredInstrument}>>
      */
     public array $writers = [];
-
-    /**
-     * @var list<MetricObserverInterface>
-     * @deprecated
-     */
-    public array $staleObservers = [];
 }

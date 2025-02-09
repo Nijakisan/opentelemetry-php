@@ -12,17 +12,17 @@ use function gzdecode;
 use function gzencode;
 use InvalidArgumentException;
 use Nyholm\Psr7\Response;
+use OpenTelemetry\SDK\Common\Export\Http\PsrTransport;
 use OpenTelemetry\SDK\Common\Export\Http\PsrTransportFactory;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 
-/**
- * @covers \OpenTelemetry\SDK\Common\Export\Http\PsrTransportFactory
- * @covers \OpenTelemetry\SDK\Common\Export\Http\PsrTransport
- */
+#[CoversClass(PsrTransportFactory::class)]
+#[CoversClass(PsrTransport::class)]
 final class PsrTransportTest extends TestCase
 {
     private MockObject $client;
@@ -97,7 +97,7 @@ final class PsrTransportTest extends TestCase
 
     public function test_send_decode_unknown_encoding_returns_error(): void
     {
-        $this->client->expects($this->once())->method('sendRequest')->willReturn(new Response(200, ['Content-Encoding' => 'invalid'], ''));
+        $this->client->expects($this->once())->method('sendRequest')->willReturn(new Response(200, ['Content-Encoding' => 'invalid'], 'foo'));
         $transport = $this->factory->create('http://localhost', 'text/plain');
 
         $response = $transport->send('');
@@ -131,7 +131,19 @@ final class PsrTransportTest extends TestCase
     public function test_send_returns_error_if_retry_limit_exceeded(): void
     {
         $this->client->expects($this->once())->method('sendRequest')->willReturn(new Response(500));
-        $transport = $this->factory->create('http://localhost', 'text/plain', [], null, 10., 100, 1);
+        $transport = $this->factory->create('http://localhost', 'text/plain', [], null, 10., 100, 0);
+
+        $response = $transport->send('');
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('retry limit');
+        $response->await();
+    }
+
+    public function test_send_number_of_retries(): void
+    {
+        $this->client->expects($this->exactly(4))->method('sendRequest')->willReturn(new Response(500));
+        $transport = $this->factory->create('http://localhost', 'text/plain', [], null, 10., 100, 3);
 
         $response = $transport->send('');
 
