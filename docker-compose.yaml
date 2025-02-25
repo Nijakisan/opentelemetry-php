@@ -1,15 +1,11 @@
-version: '3.7'
 services:
   php:
-    image: ghcr.io/open-telemetry/opentelemetry-php/opentelemetry-php-base:${PHP_VERSION:-7.4}
+    image: ghcr.io/open-telemetry/opentelemetry-php/opentelemetry-php-base:${PHP_VERSION:-8.1}
     volumes:
     - ./:/usr/src/myapp
     user: "${PHP_USER}:root"
-    environment:
-      XDEBUG_MODE: ${XDEBUG_MODE:-off}
-      XDEBUG_CONFIG: ${XDEBUG_CONFIG:-''}
-      PHP_IDE_CONFIG: ${PHP_IDE_CONFIG:-''}
-      #PHP_CS_FIXER_IGNORE_ENV: "true"
+    env_file:
+      - .env
   zipkin:
     image: openzipkin/zipkin-slim
     ports:
@@ -21,3 +17,8 @@ services:
     ports:
     - 9412:9412
     - 16686:16686
+  collector:
+    image: otel/opentelemetry-collector-contrib
+    command: [ "--config=/etc/otel-collector-config.yml" ]
+    volumes:
+      - ./files/collector/otel-collector-config.yml:/etc/otel-collector-config.yml

@@ -5,23 +5,17 @@ declare(strict_types=1);
 namespace OpenTelemetry\SDK\Metrics\Aggregation;
 
 use OpenTelemetry\Context\ContextInterface;
-use OpenTelemetry\SDK\Common\Attribute\AttributesFactoryInterface;
 use OpenTelemetry\SDK\Common\Attribute\AttributesInterface;
 use OpenTelemetry\SDK\Metrics\AggregationInterface;
 use OpenTelemetry\SDK\Metrics\Data;
-use OpenTelemetry\SDK\Metrics\Exemplar\ExemplarReservoirInterface;
-use OpenTelemetry\SDK\Metrics\Exemplar\FixedSizeReservoir;
 
 /**
  * @implements AggregationInterface<SumSummary>
  */
 final class SumAggregation implements AggregationInterface
 {
-    private bool $monotonic;
-
-    public function __construct(bool $monotonic = false)
+    public function __construct(private readonly bool $monotonic = false)
     {
-        $this->monotonic = $monotonic;
     }
 
     public function initialize(): SumSummary
@@ -72,7 +66,7 @@ final class SumAggregation implements AggregationInterface
         array $exemplars,
         int $startTimestamp,
         int $timestamp,
-        $temporality
+        $temporality,
     ): Data\Sum {
         $dataPoints = [];
         foreach ($attributes as $key => $dataPointAttributes) {
@@ -90,10 +84,5 @@ final class SumAggregation implements AggregationInterface
             $temporality,
             $this->monotonic,
         );
-    }
-
-    public function exemplarReservoir(AttributesFactoryInterface $attributesFactory): ExemplarReservoirInterface
-    {
-        return new FixedSizeReservoir($attributesFactory);
     }
 }

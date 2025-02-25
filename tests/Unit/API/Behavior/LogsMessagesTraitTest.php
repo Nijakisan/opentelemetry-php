@@ -4,72 +4,66 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Unit\API\Behavior;
 
+use OpenTelemetry\API\Behavior\Internal\Logging;
+use OpenTelemetry\API\Behavior\Internal\LogWriter\LogWriterInterface;
 use OpenTelemetry\API\Behavior\LogsMessagesTrait;
-use OpenTelemetry\API\Common\Log\LoggerHolder;
-use PHPUnit\Framework\Exception as PHPUnitFrameworkException;
+use OpenTelemetry\Tests\TestState;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestDox;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 
-/**
- * @covers \OpenTelemetry\API\Behavior\LogsMessagesTrait
- */
+#[CoversClass(LogsMessagesTrait::class)]
 class LogsMessagesTraitTest extends TestCase
 {
-    // @var LoggerInterface|MockObject $logger
-    protected MockObject $logger;
+    use TestState;
+
+    protected MockObject $writer;
 
     public function setUp(): void
     {
-        $this->logger = $this->createMock(LoggerInterface::class);
-        LoggerHolder::set($this->logger);
+        Logging::reset();
+        $this->writer = $this->createMock(LogWriterInterface::class);
+        Logging::setLogWriter($this->writer);
     }
 
-    public function tearDown(): void
+    #[DataProvider('logProvider')]
+    public function test_log(string $method, string $expectedLevel): void
     {
-        LoggerHolder::unset();
-    }
-
-    public function test_defaults_to_trigger_error_with_warning(): void
-    {
-        $message = 'something went wrong';
-        LoggerHolder::unset();
-        $this->assertFalse(LoggerHolder::isSet());
         $instance = $this->createInstance();
 
-        $this->expectException(PHPUnitFrameworkException::class);
-        $this->expectExceptionMessageMatches(sprintf('/%s/', $message));
-        $instance->run('logWarning', 'foo', ['exception' => new \Exception($message)]);
+        $this->writer->expects($this->once())->method('write')->with(
+            $this->equalTo($expectedLevel),
+            $this->stringContains('foo'),
+            $this->anything()
+        );
+
+        $instance->run($method, 'foo', ['exception' => new \Exception('bang')]);
     }
 
-    public function test_defaults_to_trigger_error_with_error(): void
+    public static function logProvider(): array
     {
-        $message = 'something went wrong';
-        LoggerHolder::unset();
-        $this->assertFalse(LoggerHolder::isSet());
-        $instance = $this->createInstance();
-
-        $this->expectException(PHPUnitFrameworkException::class);
-        $this->expectExceptionMessageMatches(sprintf('/%s/', $message));
-        $instance->run('logError', 'foo', ['exception' => new \Exception($message)]);
+        return [
+            ['logWarning', 'warning'],
+            ['logError', 'error'],
+        ];
     }
 
-    /**
-     * @testdox Proxies logging methods through to logger
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
+    #[TestDox('Proxies logging methods through to logger')]
     public function test_log_methods(string $method, string $expectedLogLevel): void
     {
         $instance = $this->createInstance();
-        $this->logger->expects($this->once())->method('log')->with(
+        $this->writer->expects($this->once())->method('write')->with(
             $this->equalTo($expectedLogLevel),
             $this->equalTo('foo'),
         );
         $instance->run($method, 'foo');
     }
 
-    public function logLevelProvider(): array
+    public static function logLevelProvider(): array
     {
         return [
             'debug' => ['logDebug', LogLevel::DEBUG],
@@ -77,6 +71,29 @@ class LogsMessagesTraitTest extends TestCase
             'notice' => ['logNotice', LogLevel::NOTICE],
             'warning' => ['logWarning', LogLevel::WARNING],
             'error' => ['logError', LogLevel::ERROR],
+        ];
+    }
+
+    #[DataProvider('otelLogLevelProvider')]
+    public function test_logging_respects_configured_otel_log_level(string $otelLogLevel, string $method, bool $expected): void
+    {
+        $this->setEnvironmentVariable('OTEL_LOG_LEVEL', $otelLogLevel);
+        $instance = $this->createInstance();
+        if ($expected) {
+            $this->writer->expects($this->once())->method('write');
+        } else {
+            $this->writer->expects($this->never())->method('write');
+        }
+        $instance->run($method, 'test message');
+    }
+
+    public static function otelLogLevelProvider(): array
+    {
+        return [
+            ['warning', 'logWarning', true],
+            ['warning', 'logError', true],
+            ['warning', 'logInfo', false],
+            ['none', 'logError', false],
         ];
     }
 

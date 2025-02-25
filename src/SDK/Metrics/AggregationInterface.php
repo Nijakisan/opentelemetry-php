@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace OpenTelemetry\SDK\Metrics;
 
 use OpenTelemetry\Context\ContextInterface;
-use OpenTelemetry\SDK\Common\Attribute\AttributesFactoryInterface;
 use OpenTelemetry\SDK\Common\Attribute\AttributesInterface;
 use OpenTelemetry\SDK\Metrics\Data\DataInterface;
 use OpenTelemetry\SDK\Metrics\Data\Exemplar;
 use OpenTelemetry\SDK\Metrics\Data\Temporality;
-use OpenTelemetry\SDK\Metrics\Exemplar\ExemplarReservoirInterface;
 
 /**
  * @psalm-template T
@@ -54,8 +52,6 @@ interface AggregationInterface
         array $exemplars,
         int $startTimestamp,
         int $timestamp,
-        $temporality
+        $temporality,
     ): DataInterface;
-
-    public function exemplarReservoir(AttributesFactoryInterface $attributesFactory): ?ExemplarReservoirInterface;
 }

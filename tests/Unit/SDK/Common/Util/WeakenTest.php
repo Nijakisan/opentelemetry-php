@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Unit\SDK\Common\Util;
 
+use Closure;
 use function OpenTelemetry\SDK\Common\Util\closure;
 use function OpenTelemetry\SDK\Common\Util\weaken;
+use PHPUnit\Framework\Attributes\CoversFunction;
 use PHPUnit\Framework\TestCase;
 use WeakReference;
 
-/**
- * @covers \OpenTelemetry\SDK\Common\Util\closure
- * @covers \OpenTelemetry\SDK\Common\Util\weaken
- */
+#[CoversFunction('\OpenTelemetry\SDK\Common\Util\weaken')]
 final class WeakenTest extends TestCase
 {
     public function test_weakened_closure_calls_original_closure(): void
@@ -24,7 +23,7 @@ final class WeakenTest extends TestCase
             }
         };
 
-        $weakened = weaken(closure([$object, 'foo']));
+        $weakened = weaken(closure($object->foo(...)));
 
         $this->assertSame(5, $weakened());
     }
@@ -38,7 +37,7 @@ final class WeakenTest extends TestCase
             }
         };
 
-        $weakened = weaken(closure([$object, 'foo']));
+        $weakened = weaken(closure($object->foo(...)));
         $reference = WeakReference::create($object);
 
         $object = null;
@@ -56,7 +55,7 @@ final class WeakenTest extends TestCase
             }
         };
 
-        weaken(closure([$object, 'foo']), $target);
+        weaken(closure($object->foo(...)), $target);
 
         $this->assertSame($object, $target);
     }
@@ -67,4 +66,25 @@ final class WeakenTest extends TestCase
 
         $this->assertSame($closure, weaken($closure));
     }
+
+    public function test_weaken_preserves_scope(): void
+    {
+        $b = new B();
+        $this->assertSame(5, weaken($b->closure())());
+    }
+}
+
+class A
+{
+    public function closure(): \Closure
+    {
+        return Closure::fromCallable($this->private(...));
+    }
+    private function private(): int
+    {
+        return 5;
+    }
+}
+class B extends A
+{
 }

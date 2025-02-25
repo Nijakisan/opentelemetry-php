@@ -3,6 +3,12 @@
   "description": "OTLP exporter for OpenTelemetry.",
   "keywords": ["opentelemetry", "otel", "tracing", "metrics", "exporter", "otlp", "grpc", "http"],
   "type": "library",
+  "support": {
+    "issues": "https://github.com/open-telemetry/opentelemetry-php/issues",
+    "source": "https://github.com/open-telemetry/opentelemetry-php",
+    "docs": "https://opentelemetry.io/docs/php",
+    "chat": "https://app.slack.com/client/T08PSQ7BQ/C01NFPCV44V"
+  },
   "license": "Apache-2.0",
   "authors": [
     {
@@ -11,16 +17,13 @@
     }
   ],
   "require": {
-    "php": "^7.4 || ^8.0",
+    "php": "^8.1",
     "php-http/discovery": "^1.14",
-    "open-telemetry/gen-otlp-protobuf": "^1.0",
+    "open-telemetry/gen-otlp-protobuf": "^1.1",
     "open-telemetry/api": "^1.0",
     "open-telemetry/sdk": "^1.0"
   },
   "suggest": {
-    "php-http/async-client-implementation": "For otlp/http exporting",
-    "php-http/discovery": "For otlp/http exporting",
-    "psr/http-factory-implementation": "For otlp/http exporting"
   },
   "autoload": {
     "psr-4": {
@@ -29,5 +32,10 @@
     "files": [
       "_register.php"
     ]
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "1.0.x-dev"
+    }
   }
 }

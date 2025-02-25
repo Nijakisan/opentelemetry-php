@@ -5,45 +5,36 @@ declare(strict_types=1);
 namespace OpenTelemetry\SDK\Resource;
 
 use function in_array;
+use OpenTelemetry\API\Behavior\LogsMessagesTrait;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SDK\Common\Configuration\Configuration;
 use OpenTelemetry\SDK\Common\Configuration\KnownValues as Values;
 use OpenTelemetry\SDK\Common\Configuration\Variables as Env;
+use OpenTelemetry\SDK\Registry;
+use RuntimeException;
 
 class ResourceInfoFactory
 {
-    /**
-     * Merges resources into a new one.
-     *
-     * @param ResourceInfo ...$resources
-     * @return ResourceInfo
-     */
-    public static function merge(ResourceInfo ...$resources): ResourceInfo
-    {
-        $attributes = [];
+    use LogsMessagesTrait;
 
-        foreach ($resources as $resource) {
-            $attributes += $resource->getAttributes()->toArray();
-        }
-
-        $schemaUrl = self::mergeSchemaUrl(...$resources);
-
-        return ResourceInfo::create(Attributes::create($attributes), $schemaUrl);
-    }
+    private static ?ResourceInfo $emptyResource = null;
 
     public static function defaultResource(): ResourceInfo
     {
         $detectors = Configuration::getList(Env::OTEL_PHP_DETECTORS);
 
         if (in_array(Values::VALUE_ALL, $detectors)) {
+            // ascending priority: keys from later detectors will overwrite earlier
             return (new Detectors\Composite([
-                new Detectors\Environment(),
                 new Detectors\Host(),
                 new Detectors\OperatingSystem(),
                 new Detectors\Process(),
                 new Detectors\ProcessRuntime(),
                 new Detectors\Sdk(),
                 new Detectors\SdkProvided(),
+                new Detectors\Composer(),
+                ...Registry::resourceDetectors(),
+                new Detectors\Environment(),
             ]))->getResource();
         }
 
@@ -51,6 +42,10 @@ class ResourceInfoFactory
 
         foreach ($detectors as $detector) {
             switch ($detector) {
+                case Values::VALUE_DETECTORS_SERVICE:
+                    $resourceDetectors[] = new Detectors\Service();
+
+                    break;
                 case Values::VALUE_DETECTORS_ENVIRONMENT:
                     $resourceDetectors[] = new Detectors\Environment();
 
@@ -79,7 +74,20 @@ class ResourceInfoFactory
                     $resourceDetectors[] = new Detectors\SdkProvided();
 
                     break;
+
+                case Values::VALUE_DETECTORS_COMPOSER:
+                    $resourceDetectors[] = new Detectors\Composer();
+
+                    break;
+                case Values::VALUE_NONE:
+
+                    break;
                 default:
+                    try {
+                        $resourceDetectors[] = Registry::resourceDetector($detector);
+                    } catch (RuntimeException $e) {
+                        self::logWarning($e->getMessage());
+                    }
             }
         }
 
@@ -88,20 +96,10 @@ class ResourceInfoFactory
 
     public static function emptyResource(): ResourceInfo
     {
-        return ResourceInfo::create(Attributes::create([]));
-    }
-
-    private static function mergeSchemaUrl(ResourceInfo ...$resources): ?string
-    {
-        $schemaUrl = null;
-        foreach ($resources as $resource) {
-            if ($schemaUrl !== null && $resource->getSchemaUrl() !== null && $schemaUrl !== $resource->getSchemaUrl()) {
-                // stop the merging if non-empty conflicting schemas are detected
-                return null;
-            }
-            $schemaUrl ??= $resource->getSchemaUrl();
+        if (null === self::$emptyResource) {
+            self::$emptyResource = ResourceInfo::create(Attributes::create([]));
         }
 
-        return $schemaUrl;
+        return self::$emptyResource;
     }
 }

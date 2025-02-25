@@ -10,15 +10,17 @@ use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\Contrib\Zipkin\SpanConverter;
 use OpenTelemetry\Contrib\Zipkin\SpanKind as ZipkinSpanKind;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
+use OpenTelemetry\SDK\Common\Attribute\AttributesInterface;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScope;
 use OpenTelemetry\SDK\Resource\ResourceInfo;
+use OpenTelemetry\SDK\Trace\SpanDataInterface;
 use OpenTelemetry\SDK\Trace\StatusData;
 use OpenTelemetry\Tests\Unit\SDK\Util\SpanData;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers OpenTelemetry\Contrib\Zipkin\SpanConverter
- */
+#[CoversClass(SpanConverter::class)]
 class ZipkinSpanConverterTest extends TestCase
 {
     public function test_should_convert_a_span_to_a_payload_for_zipkin(): void
@@ -115,9 +117,7 @@ class ZipkinSpanConverterTest extends TestCase
         $this->assertArrayNotHasKey('otel.scope.version', $row);
     }
 
-    /**
-     * @dataProvider spanKindProvider
-     */
+    #[DataProvider('spanKindProvider')]
     public function test_should_convert_otel_span_to_a_zipkin_span(int $internalSpanKind, string $expectedSpanKind): void
     {
         $span = (new SpanData())
@@ -129,7 +129,7 @@ class ZipkinSpanConverterTest extends TestCase
         $this->assertSame($expectedSpanKind, $row['kind']);
     }
 
-    public function spanKindProvider(): array
+    public static function spanKindProvider(): array
     {
         return [
             'server' => [SpanKind::KIND_SERVER, ZipkinSpanKind::SERVER],
@@ -139,9 +139,7 @@ class ZipkinSpanConverterTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider unmappedSpanKindProvider
-     */
+    #[DataProvider('unmappedSpanKindProvider')]
     public function test_should_convert_an_unmapped_otel_internal_span_to_a_zipkin_span_of_unspecified_kind($kind): void
     {
         $span = (new SpanData())
@@ -153,7 +151,7 @@ class ZipkinSpanConverterTest extends TestCase
         $this->assertArrayNotHasKey('kind', $row);
     }
 
-    public function unmappedSpanKindProvider(): array
+    public static function unmappedSpanKindProvider(): array
     {
         return [
             'internal' => [SpanKind::KIND_INTERNAL],
@@ -197,15 +195,17 @@ class ZipkinSpanConverterTest extends TestCase
         $converter = new SpanConverter();
         $row = $converter->convert([$span])[0];
 
-        $this->assertSame('00000000000000000000000000000001', bin2hex($row['remoteEndpoint']['ipv6'])); //Couldn't figure out how to do a direct assertion against binary data
+        $this->assertSame('00000000000000000000000000000001', bin2hex((string) $row['remoteEndpoint']['ipv6'])); //Couldn't figure out how to do a direct assertion against binary data
     }
 
+    /**
+     * @psalm-suppress UndefinedInterfaceMethod,PossiblyInvalidArrayAccess
+     */
     public function test_tags_are_coerced_correctly_to_strings(): void
     {
         $listOfStrings = ['string-1', 'string-2'];
         $listOfNumbers = [1, 2, 3, 3.1415, 42];
         $listOfBooleans = [true, true, false, true];
-        $listOfRandoms = [true, [1, 2, 3], false, 'string-1', 3.1415];
 
         $span = (new SpanData())
             ->setName('tags.test')
@@ -217,13 +217,12 @@ class ZipkinSpanConverterTest extends TestCase
             ->addAttribute('boolean-2', false)
             ->addAttribute('list-of-strings', $listOfStrings)
             ->addAttribute('list-of-numbers', $listOfNumbers)
-            ->addAttribute('list-of-booleans', $listOfBooleans)
-            ->addAttribute('list-of-random', $listOfRandoms);
+            ->addAttribute('list-of-booleans', $listOfBooleans);
 
         $tags = (new SpanConverter())->convert([$span])[0]['tags'];
 
         // Check that we can convert all attributes to tags
-        $this->assertCount(10, $tags);
+        $this->assertCount(9, $tags);
 
         // Tags destined for Zipkin must be pairs of strings
         foreach ($tags as $tagKey => $tagValue) {
@@ -238,13 +237,73 @@ class ZipkinSpanConverterTest extends TestCase
         $this->assertSame('true', $tags['boolean-1']);
         $this->assertSame('false', $tags['boolean-2']);
 
-        // Lists must be casted to strings and joined with a separator
+        // Lists must be cast to strings and joined with a separator
         $this->assertSame(implode(',', $listOfStrings), $tags['list-of-strings']);
         $this->assertSame(implode(',', $listOfNumbers), $tags['list-of-numbers']);
         $this->assertSame('true,true,false,true', $tags['list-of-booleans']);
+    }
 
-        // This currently works, but OpenTelemetry\Trace\Span should stop arrays
-        // containing multiple value types from being passed to the Exporter.
-        $this->assertSame('true,1,2,3,false,string-1,3.1415', $tags['list-of-random']);
+    /**
+     * @see https://github.com/open-telemetry/opentelemetry-specification/blob/v1.20.0/specification/common/mapping-to-non-otlp.md#dropped-attributes-count
+     */
+    #[DataProvider('droppedProvider')]
+    public function test_displays_non_zero_dropped_counts(int $dropped, bool $expected): void
+    {
+        $attributes = $this->createMock(AttributesInterface::class);
+        $attributes->method('getDroppedAttributesCount')->willReturn($dropped);
+        $spanData = $this->createMock(SpanDataInterface::class);
+        $spanData->method('getAttributes')->willReturn($attributes);
+        $spanData->method('getLinks')->willReturn([]);
+        $spanData->method('getEvents')->willReturn([]);
+        $spanData->method('getTotalDroppedEvents')->willReturn($dropped);
+        $spanData->method('getTotalDroppedLinks')->willReturn($dropped);
+
+        $converter = new SpanConverter();
+        $converted = $converter->convert([$spanData])[0];
+        $tags = $converted['tags'];
+
+        if ($expected) {
+            $this->assertArrayHasKey(SpanConverter::KEY_DROPPED_EVENTS_COUNT, $tags);
+            $this->assertIsString($tags[SpanConverter::KEY_DROPPED_EVENTS_COUNT]);
+            $this->assertArrayHasKey(SpanConverter::KEY_DROPPED_LINKS_COUNT, $tags);
+            $this->assertIsString($tags[SpanConverter::KEY_DROPPED_EVENTS_COUNT]);
+            $this->assertArrayHasKey(SpanConverter::KEY_DROPPED_ATTRIBUTES_COUNT, $tags);
+            $this->assertIsString($tags[SpanConverter::KEY_DROPPED_EVENTS_COUNT]);
+        } else {
+            $this->assertArrayNotHasKey(SpanConverter::KEY_DROPPED_EVENTS_COUNT, $tags);
+            $this->assertArrayNotHasKey(SpanConverter::KEY_DROPPED_LINKS_COUNT, $tags);
+            $this->assertArrayNotHasKey(SpanConverter::KEY_DROPPED_ATTRIBUTES_COUNT, $tags);
+        }
+    }
+
+    public static function droppedProvider(): array
+    {
+        return [
+            'no dropped' => [0, false],
+            'some dropped' => [1, true],
+        ];
+    }
+
+    public function test_events(): void
+    {
+        $eventAttributes = $this->createMock(AttributesInterface::class);
+        $eventAttributes->method('getDroppedAttributesCount')->willReturn(99);
+        $attributes = [
+            'a_one' => 123,
+            'a_two' => 3.14159,
+            'a_three' => true,
+            'a_four' => false,
+        ];
+        $eventAttributes->method('count')->willReturn(count($attributes));
+        $eventAttributes->method('toArray')->willReturn($attributes);
+        $span = (new SpanData())
+            ->setName('events.test')
+            ->addEvent('event.one', $eventAttributes);
+        $converted = (new SpanConverter())->convert([$span])[0];
+        $annotations = $converted['annotations'][0];
+
+        $this->assertIsInt($annotations['timestamp']);
+        $this->assertIsString($annotations['value']);
+        $this->assertIsString($annotations[SpanConverter::KEY_DROPPED_ATTRIBUTES_COUNT]);
     }
 }

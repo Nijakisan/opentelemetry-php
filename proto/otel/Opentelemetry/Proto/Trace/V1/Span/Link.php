@@ -52,6 +52,23 @@ class Link extends \Google\Protobuf\Internal\Message
      * Generated from protobuf field <code>uint32 dropped_attributes_count = 5;</code>
      */
     protected $dropped_attributes_count = 0;
+    /**
+     * Flags, a bit field.
+     * Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     * Context specification. To read the 8-bit W3C trace flag, use
+     * `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     * See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     * Bits 8 and 9 represent the 3 states of whether the link is remote.
+     * The states are (unknown, is not remote, is remote).
+     * To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     * To read whether the link is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     * Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     * When creating new spans, bits 10-31 (most-significant 22-bits) MUST be zero.
+     * [Optional].
+     *
+     * Generated from protobuf field <code>fixed32 flags = 6;</code>
+     */
+    protected $flags = 0;
 
     /**
      * Constructor.
@@ -73,6 +90,19 @@ class Link extends \Google\Protobuf\Internal\Message
      *     @type int $dropped_attributes_count
      *           dropped_attributes_count is the number of dropped attributes. If the value is 0,
      *           then no attributes were dropped.
+     *     @type int $flags
+     *           Flags, a bit field.
+     *           Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     *           Context specification. To read the 8-bit W3C trace flag, use
+     *           `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     *           See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     *           Bits 8 and 9 represent the 3 states of whether the link is remote.
+     *           The states are (unknown, is not remote, is remote).
+     *           To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     *           To read whether the link is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     *           Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     *           When creating new spans, bits 10-31 (most-significant 22-bits) MUST be zero.
+     *           [Optional].
      * }
      */
     public function __construct($data = NULL) {
@@ -214,6 +244,54 @@ class Link extends \Google\Protobuf\Internal\Message
     {
         GPBUtil::checkUint32($var);
         $this->dropped_attributes_count = $var;
+
+        return $this;
+    }
+
+    /**
+     * Flags, a bit field.
+     * Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     * Context specification. To read the 8-bit W3C trace flag, use
+     * `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     * See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     * Bits 8 and 9 represent the 3 states of whether the link is remote.
+     * The states are (unknown, is not remote, is remote).
+     * To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     * To read whether the link is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     * Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     * When creating new spans, bits 10-31 (most-significant 22-bits) MUST be zero.
+     * [Optional].
+     *
+     * Generated from protobuf field <code>fixed32 flags = 6;</code>
+     * @return int
+     */
+    public function getFlags()
+    {
+        return $this->flags;
+    }
+
+    /**
+     * Flags, a bit field.
+     * Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     * Context specification. To read the 8-bit W3C trace flag, use
+     * `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     * See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     * Bits 8 and 9 represent the 3 states of whether the link is remote.
+     * The states are (unknown, is not remote, is remote).
+     * To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     * To read whether the link is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     * Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     * When creating new spans, bits 10-31 (most-significant 22-bits) MUST be zero.
+     * [Optional].
+     *
+     * Generated from protobuf field <code>fixed32 flags = 6;</code>
+     * @param int $var
+     * @return $this
+     */
+    public function setFlags($var)
+    {
+        GPBUtil::checkUint32($var);
+        $this->flags = $var;
 
         return $this;
     }

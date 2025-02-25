@@ -9,6 +9,11 @@ use Exception;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryTestCase;
 use Mockery\MockInterface;
+use OpenTelemetry\API\Behavior\Internal\Logging;
+use OpenTelemetry\API\Behavior\Internal\LogWriter\LogWriterInterface;
+use OpenTelemetry\API\Common\Time\Clock;
+use OpenTelemetry\API\Common\Time\ClockInterface;
+use OpenTelemetry\API\Common\Time\TestClock;
 use OpenTelemetry\API\Trace as API;
 use OpenTelemetry\API\Trace\NonRecordingSpan;
 use OpenTelemetry\API\Trace\SpanContext;
@@ -19,9 +24,6 @@ use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SDK\Common\Attribute\AttributesInterface;
 use OpenTelemetry\SDK\Common\Exception\StackTraceFormatter;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScope;
-use OpenTelemetry\SDK\Common\Time\ClockFactory;
-use OpenTelemetry\SDK\Common\Time\ClockInterface;
-use OpenTelemetry\SDK\Common\Time\Util as TimeUtil;
 use OpenTelemetry\SDK\Resource\ResourceInfo;
 use OpenTelemetry\SDK\Resource\ResourceInfoFactory;
 use OpenTelemetry\SDK\Trace\Event;
@@ -36,16 +38,18 @@ use OpenTelemetry\SDK\Trace\SpanLimits;
 use OpenTelemetry\SDK\Trace\SpanLimitsBuilder;
 use OpenTelemetry\SDK\Trace\SpanProcessorInterface;
 use OpenTelemetry\SDK\Trace\StatusData;
-use OpenTelemetry\Tests\Unit\SDK\Util\TestClock;
-
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\MockObject\MockObject;
 use function range;
 use function str_repeat;
 
-/**
- * @covers \OpenTelemetry\SDK\Trace\Span
- */
+#[CoversClass(Span::class)]
 class SpanTest extends MockeryTestCase
 {
+    private const TRACE_ID = 'e4a8d4e0d75c0702200af2882cb16c6b';
+    private const SPAN_ID = '46701247e52c2d1b';
     private const SPAN_NAME = 'test_span';
     private const NEW_SPAN_NAME = 'new_test_span';
     private const START_EPOCH = 1000123789654;
@@ -57,6 +61,8 @@ class SpanTest extends MockeryTestCase
 
     /** @var MockInterface&SpanProcessorInterface */
     private $spanProcessor;
+    /** @var LogWriterInterface&MockObject $logWriter */
+    private LogWriterInterface $logWriter;
 
     private IdGeneratorInterface $idGenerator;
     private ResourceInfo $resource;
@@ -95,12 +101,9 @@ class SpanTest extends MockeryTestCase
             )
         );
 
-        ClockFactory::setDefault($this->testClock);
-    }
-
-    protected function tearDown(): void
-    {
-        ClockFactory::setDefault(null);
+        Clock::setDefault($this->testClock);
+        $this->logWriter = $this->createMock(LogWriterInterface::class);
+        Logging::setLogWriter($this->logWriter);
     }
 
     // region API
@@ -118,9 +121,7 @@ class SpanTest extends MockeryTestCase
         );
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_start_span(): void
     {
         $this->createTestSpan(API\SpanKind::KIND_INTERNAL);
@@ -129,9 +130,7 @@ class SpanTest extends MockeryTestCase
             ->once();
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_end_span(): void
     {
         $span = $this->createTestSpan(API\SpanKind::KIND_CONSUMER);
@@ -149,9 +148,7 @@ class SpanTest extends MockeryTestCase
         $this->assertSame(self::START_EPOCH, $span->getStartEpochNanos());
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_get_current_span_set_span(): void
     {
         $span = Span::wrap(SpanContext::getInvalid());
@@ -210,12 +207,8 @@ class SpanTest extends MockeryTestCase
     }
 
     // endregion API
-
     // region SDK
-
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_nothing_changes_after_end(): void
     {
         $span = $this->createTestSpan();
@@ -247,10 +240,7 @@ class SpanTest extends MockeryTestCase
         $this->assertTrue($span->hasEnded());
     }
 
-    /**
-     * @group trace-compliance
-     * @covers OpenTelemetry\SDK\Trace\Span::isRecording
-     */
+    #[Group('trace-compliance')]
     public function test_to_span_data_active_span(): void
     {
         $span = $this->createTestSpan();
@@ -279,9 +269,7 @@ class SpanTest extends MockeryTestCase
         $this->assertFalse($span->isRecording());
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_to_span_data_ended_span(): void
     {
         $span = $this->createTestSpan();
@@ -340,9 +328,7 @@ class SpanTest extends MockeryTestCase
         $this->assertSame(0, $spanData->getAttributes()->getDroppedAttributesCount());
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_to_span_data_is_immutable(): void
     {
         $span = $this->createTestSpanWithAttributes(self::ATTRIBUTES);
@@ -410,9 +396,7 @@ class SpanTest extends MockeryTestCase
         $span->end();
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_update_span_name(): void
     {
         $span = $this->createTestRootSpan();
@@ -446,10 +430,7 @@ class SpanTest extends MockeryTestCase
         $this->assertSame($elapsedNanos, $span->getDuration());
     }
 
-    /**
-     * @group trace-compliance
-     * @covers OpenTelemetry\SDK\Trace\Span::setAttributes
-     */
+    #[Group('trace-compliance')]
     public function test_set_attributes(): void
     {
         $span = $this->createTestRootSpan();
@@ -486,16 +467,58 @@ class SpanTest extends MockeryTestCase
         $this->assertEmpty($span->toSpanData()->getAttributes());
     }
 
-    /**
-     * @group trace-compliance
-     * @covers OpenTelemetry\SDK\Trace\Span::addEvent
-     */
+    #[DataProvider('nonHomogeneousArrayProvider')]
+    public function test_set_attribute_drops_non_homogeneous_array(array $values): void
+    {
+        $this->logWriter->expects($this->once())
+            ->method('write')
+            ->with(
+                $this->equalTo('warning'),
+                $this->stringContains('non-homogeneous')
+            );
+        $span = $this->createTestRootSpan();
+        $span->setAttribute('attr', $values);
+        $this->assertNull($span->getAttribute('attr'));
+    }
+
+    public static function nonHomogeneousArrayProvider(): array
+    {
+        return [
+            [[true, 'foo']],
+            [['foo', false]],
+            [['foo', 'bar', 3]],
+            [[5, 3.14, true]],
+            [['one' => 1, 'two' => true]],
+        ];
+    }
+
+    #[DataProvider('homogeneousArrayProvider')]
+    public function test_set_attribute_with_homogeneous_array(array $values): void
+    {
+        $span = $this->createTestRootSpan();
+        $span->setAttribute('attr', $values);
+        $this->assertIsArray($span->getAttribute('attr'));
+    }
+
+    public static function homogeneousArrayProvider(): array
+    {
+        return [
+            'booleans' => [[true, false, true]],
+            'strings' => [['foo', 'false', 'bar']],
+            'int and double' => [[3, 3.14159]],
+            'integers' => [[3, 1, 5]],
+            'doubles' => [[1.25, 3.11]],
+            'strings with non-numeric keys' => [['foo' => 'foo', 'bar' => 'bar']],
+        ];
+    }
+
+    #[Group('trace-compliance')]
     public function test_add_event(): void
     {
         $span = $this->createTestRootSpan();
         $span->addEvent('event1');
         $span->addEvent('event2', ['key1' => 1]);
-        $span->addEvent('event3', [], TimeUtil::secondsToNanos(10));
+        $span->addEvent('event3', [], 10*ClockInterface::NANOS_PER_SECOND);
 
         $span->end();
 
@@ -505,7 +528,7 @@ class SpanTest extends MockeryTestCase
 
         $this->assertEvent($events[$idx++], 'event1', Attributes::create([]), self::START_EPOCH);
         $this->assertEvent($events[$idx++], 'event2', Attributes::create(['key1' => 1]), self::START_EPOCH);
-        $this->assertEvent($events[$idx], 'event3', Attributes::create([]), TimeUtil::secondsToNanos(10));
+        $this->assertEvent($events[$idx], 'event3', Attributes::create([]), 10*ClockInterface::NANOS_PER_SECOND);
     }
 
     public function test_add_event_attribute_length(): void
@@ -544,9 +567,7 @@ class SpanTest extends MockeryTestCase
         $span->end();
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_record_exception(): void
     {
         $exception = new Exception('ERR');
@@ -632,12 +653,11 @@ class SpanTest extends MockeryTestCase
         $span->end();
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_dropping_attributes(): void
     {
         $maxNumberOfAttributes = 8;
+        $this->expectDropped(8, 0, 0);
         $span = $this->createTestSpan(API\SpanKind::KIND_INTERNAL, (new SpanLimitsBuilder())->setAttributeCountLimit($maxNumberOfAttributes)->build());
 
         foreach (range(1, $maxNumberOfAttributes * 2) as $idx) {
@@ -659,6 +679,7 @@ class SpanTest extends MockeryTestCase
     public function test_dropping_attributes_provided_via_span_builder(): void
     {
         $maxNumberOfAttributes = 8;
+        $this->expectDropped(8, 0, 0);
 
         $attributesBuilder = Attributes::factory()->builder();
 
@@ -687,6 +708,7 @@ class SpanTest extends MockeryTestCase
 
     public function test_dropping_events(): void
     {
+        $this->expectDropped(0, 8, 0);
         $maxNumberOfEvents = 8;
         $span = $this->createTestSpan(API\SpanKind::KIND_INTERNAL, (new SpanLimitsBuilder())->setEventCountLimit($maxNumberOfEvents)->build());
 
@@ -702,11 +724,28 @@ class SpanTest extends MockeryTestCase
         $span->end();
     }
 
-    // endregion SDK
+    public function test_dropping_links(): void
+    {
+        $maxNumberOfLinks = 8;
+        $expectedDroppedLinks = 9; //test span contains one link by default
+        $this->expectDropped(0, 0, $expectedDroppedLinks);
+        $span = $this->createTestSpan(API\SpanKind::KIND_INTERNAL, (new SpanLimitsBuilder())->setLinkCountLimit($maxNumberOfLinks)->build());
+        $ctx = SpanContext::create(self::TRACE_ID, self::SPAN_ID);
 
-    /**
-    * @group trace-compliance
-    */
+        foreach (range(1, $maxNumberOfLinks * 2) as $_idx) {
+            $span->addLink($ctx);
+            $this->testClock->advanceSeconds();
+        }
+
+        $spanData = $span->toSpanData();
+        $this->assertCount($maxNumberOfLinks, $spanData->getLinks());
+        $this->assertSame($expectedDroppedLinks, $spanData->getTotalDroppedLinks());
+
+        $span->end();
+    }
+
+    // endregion SDK
+    #[Group('trace-compliance')]
     public function test_set_attributes_merges_attributes(): void
     {
         $span = $this->createTestRootSpan();
@@ -729,9 +768,7 @@ class SpanTest extends MockeryTestCase
         $this->assertSame(['f', 'b'], $attributes->get('str_array'));
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_add_event_order_preserved(): void
     {
         $span = $this->createTestRootSpan();
@@ -749,12 +786,12 @@ class SpanTest extends MockeryTestCase
     }
 
     /**
-     * @dataProvider statusCodeProvider
-     * @group trace-compliance
      * @psalm-param StatusCode::STATUS_* $code
      *
      * When span status is set to Ok it SHOULD be considered final and any further attempts to change it SHOULD be ignored.
      */
+    #[DataProvider('statusCodeProvider')]
+    #[Group('trace-compliance')]
     public function test_set_status_after_ok_is_ignored(string $code): void
     {
         $span = $this->createTestRootSpan();
@@ -766,7 +803,7 @@ class SpanTest extends MockeryTestCase
         $this->assertSame(API\StatusCode::STATUS_OK, $span->toSpanData()->getStatus()->getCode());
     }
 
-    public function statusCodeProvider(): array
+    public static function statusCodeProvider(): array
     {
         return [
             [API\StatusCode::STATUS_UNSET],
@@ -774,9 +811,7 @@ class SpanTest extends MockeryTestCase
         ];
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_can_set_status_to_ok_after_error(): void
     {
         $span = $this->createTestRootSpan();
@@ -800,10 +835,10 @@ class SpanTest extends MockeryTestCase
      */
     private function createTestSpan(
         int $kind = API\SpanKind::KIND_INTERNAL,
-        SpanLimits $spanLimits = null,
-        string $parentSpanId = null,
+        ?SpanLimits $spanLimits = null,
+        ?string $parentSpanId = null,
         iterable $attributes = [],
-        array $links = []
+        array $links = [],
     ): Span {
         $parentSpanId = $parentSpanId ?? $this->parentSpanId;
         $spanLimits = $spanLimits ?? (new SpanLimitsBuilder())->build();
@@ -867,7 +902,7 @@ class SpanTest extends MockeryTestCase
         EventInterface $event,
         string $expectedName,
         AttributesInterface $expectedAttributes,
-        int $expectedEpochNanos
+        int $expectedEpochNanos,
     ): void {
         $this->assertSame($expectedName, $event->getName());
         $this->assertEquals($expectedAttributes, $event->getAttributes());
@@ -888,7 +923,7 @@ class SpanTest extends MockeryTestCase
         int $startEpochNanos,
         int $endEpochNanos,
         string $status,
-        bool $hasEnded
+        bool $hasEnded,
     ): void {
         $this->assertSame($spanName, $spanData->getName());
         $this->assertSame($this->traceId, $spanData->getTraceId());
@@ -904,5 +939,22 @@ class SpanTest extends MockeryTestCase
         $this->assertSame($status, $spanData->getStatus()->getCode());
         $this->assertSame($hasEnded, $spanData->hasEnded());
         $this->assertEquals($attributes, $spanData->getAttributes());
+    }
+
+    private function expectDropped(int $attributes, int $events, int $links): void
+    {
+        $this->logWriter->expects($this->atLeastOnce())->method('write')->with(
+            $this->anything(),
+            $this->stringContains('Dropped span attributes'),
+            $this->callback(function (array $context) use ($attributes, $events, $links) {
+                $this->assertSame($context['attributes'], $attributes);
+                $this->assertSame($context['events'], $events);
+                $this->assertSame($context['links'], $links);
+                $this->assertNotNull($context['trace_id']);
+                $this->assertNotNull($context['span_id']);
+
+                return true;
+            }),
+        );
     }
 }

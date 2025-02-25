@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Integration\SDK;
 
-use AssertWell\PHPUnitGlobalState\EnvironmentVariables;
+use OpenTelemetry\API\Behavior\Internal\Logging;
 use OpenTelemetry\API\Trace as API;
 use OpenTelemetry\API\Trace\NonRecordingSpan;
 use OpenTelemetry\API\Trace\SpanContext;
 use OpenTelemetry\API\Trace\TraceState;
 use OpenTelemetry\Context\Context;
+use OpenTelemetry\SDK\Common\Attribute\AttributesInterface;
 use OpenTelemetry\SDK\Common\Configuration\Variables;
 use OpenTelemetry\SDK\Trace\Sampler\AlwaysOffSampler;
 use OpenTelemetry\SDK\Trace\SamplerInterface;
@@ -23,19 +24,15 @@ use OpenTelemetry\SDK\Trace\SpanProcessorInterface;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use OpenTelemetry\SDK\Trace\TracerProviderFactory;
 use OpenTelemetry\SemConv\TraceAttributes;
+use OpenTelemetry\Tests\TestState;
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversNothing
- */
+#[CoversNothing]
 class TracerTest extends TestCase
 {
-    use EnvironmentVariables;
-
-    public function tearDown(): void
-    {
-        self::restoreEnvironmentVariables();
-    }
+    use TestState;
 
     public function test_noop_span_should_be_started_when_sampling_result_is_drop(): void
     {
@@ -48,7 +45,7 @@ class TracerTest extends TestCase
         $span = $tracer->spanBuilder('test.span')->startSpan();
 
         $this->assertInstanceOf(NonRecordingSpan::class, $span);
-        $this->assertNotEquals(API\SpanContextInterface::TRACE_FLAG_SAMPLED, $span->getContext()->getTraceFlags());
+        $this->assertNotEquals(API\TraceFlags::SAMPLED, $span->getContext()->getTraceFlags());
     }
 
     public function test_sampler_may_override_parents_trace_state(): void
@@ -60,7 +57,7 @@ class TracerTest extends TestCase
                     SpanContext::create(
                         '4bf92f3577b34da6a3ce929d0e0e4736',
                         '00f067aa0ba902b7',
-                        API\SpanContextInterface::TRACE_FLAG_SAMPLED
+                        API\TraceFlags::SAMPLED
                     )
                 )
             );
@@ -83,9 +80,7 @@ class TracerTest extends TestCase
         $this->assertEquals($newTraceState, $span->getContext()->getTraceState());
     }
 
-    /**
-     * @group trace-compliance
-     */
+    #[Group('trace-compliance')]
     public function test_span_should_receive_instrumentation_scope(): void
     {
         $tracerProvider = new TracerProvider();
@@ -119,21 +114,22 @@ class TracerTest extends TestCase
 
     public function test_general_identity_attributes_are_dropped_by_default(): void
     {
+        Logging::disable();
         $exporter = new InMemoryExporter();
         $tracerProvider = new TracerProvider(new SimpleSpanProcessor($exporter));
         $tracer = $tracerProvider->getTracer('test');
         $tracer->spanBuilder('test')
-            ->setAttribute(TraceAttributes::ENDUSER_ID, 'username')
-            ->setAttribute(TraceAttributes::ENDUSER_ROLE, 'admin')
-            ->setAttribute(TraceAttributes::ENDUSER_SCOPE, 'read:message, write:files')
+            ->setAttribute(TraceAttributes::USER_ID, 'username')
+            ->setAttribute(TraceAttributes::USER_ROLES, 'admin')
             ->startSpan()
             ->end();
 
         $tracerProvider->shutdown();
 
+        /** @var AttributesInterface $attributes */
         $attributes = $exporter->getSpans()[0]->getAttributes();
         $this->assertCount(0, $attributes);
-        $this->assertSame(3, $attributes->getDroppedAttributesCount());
+        $this->assertSame(2, $attributes->getDroppedAttributesCount());
     }
 
     public function test_general_identity_attributes_are_retained_if_enabled(): void
@@ -153,6 +149,7 @@ class TracerTest extends TestCase
 
         $tracerProvider->shutdown();
 
+        /** @var AttributesInterface $attributes */
         $attributes = $exporter->getSpans()[0]->getAttributes();
         $this->assertCount(3, $attributes);
         $this->assertSame(0, $attributes->getDroppedAttributesCount());

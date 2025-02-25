@@ -9,16 +9,15 @@ use OpenTelemetry\API\Trace\SpanContext;
 use OpenTelemetry\API\Trace\SpanContextValidator;
 use OpenTelemetry\API\Trace\TraceState;
 use OpenTelemetry\SDK\Trace\RandomIdGenerator;
+use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversNothing
- */
+#[CoversNothing]
 class SpanContextTest extends TestCase
 {
-    /**
-     * @dataProvider invalidSpanData
-     */
+    #[DataProvider('invalidSpanData')]
     public function test_invalid_span(string $traceId, string $spanId): void
     {
         $spanContext = SpanContext::create($traceId, $spanId);
@@ -26,7 +25,7 @@ class SpanContextTest extends TestCase
         $this->assertSame(SpanContextValidator::INVALID_SPAN, $spanContext->getSpanId());
     }
 
-    public function invalidSpanData(): array
+    public static function invalidSpanData(): array
     {
         return [
             // Too long TraceID
@@ -40,35 +39,29 @@ class SpanContextTest extends TestCase
         ];
     }
 
-    /**
-     * @group trace-compliance
-     * @covers ::isValid
-     */
+    #[Group('trace-compliance')]
     public function test_valid_span(): void
     {
-        $spanContext = SpanContext::create('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\SpanContextInterface::TRACE_FLAG_SAMPLED);
+        $spanContext = SpanContext::create('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\TraceFlags::SAMPLED);
         $this->assertTrue($spanContext->isValid());
     }
 
-    /**
-     * @group trace-compliance
-     * @covers ::isRemote
-     */
+    #[Group('trace-compliance')]
     public function test_context_is_remote_from_restore(): void
     {
-        $spanContext = SpanContext::createFromRemoteParent('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\SpanContextInterface::TRACE_FLAG_SAMPLED);
+        $spanContext = SpanContext::createFromRemoteParent('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\TraceFlags::SAMPLED);
         $this->assertTrue($spanContext->isRemote());
     }
 
     public function test_context_is_not_remote_from_constructor(): void
     {
-        $spanContext = SpanContext::create('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\SpanContextInterface::TRACE_FLAG_SAMPLED);
+        $spanContext = SpanContext::create('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\TraceFlags::SAMPLED);
         $this->assertFalse($spanContext->isRemote());
     }
 
     public function test_sampled_span(): void
     {
-        $spanContext = SpanContext::create('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\SpanContextInterface::TRACE_FLAG_SAMPLED);
+        $spanContext = SpanContext::create('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb', API\TraceFlags::SAMPLED);
         $this->assertTrue($spanContext->isSampled());
     }
 
@@ -77,7 +70,7 @@ class SpanContextTest extends TestCase
         $trace = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
         $span = 'bbbbbbbbbbbbbbbb';
         $tracestate = new TraceState('a=b');
-        $spanContext = SpanContext::create($trace, $span, API\SpanContextInterface::TRACE_FLAG_DEFAULT, $tracestate);
+        $spanContext = SpanContext::create($trace, $span, API\TraceFlags::DEFAULT, $tracestate);
         $this->assertSame($trace, $spanContext->getTraceId());
         $this->assertSame($span, $spanContext->getSpanId());
         $this->assertSame($tracestate, $spanContext->getTraceState());

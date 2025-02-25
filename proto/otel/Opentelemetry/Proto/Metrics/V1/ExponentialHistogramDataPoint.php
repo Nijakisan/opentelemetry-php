@@ -59,7 +59,7 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * events, and is assumed to be monotonic over the values of these events.
      * Negative events *can* be recorded, but sum should not be filled out when
      * doing so.  This is specifically to enforce compatibility w/ OpenMetrics,
-     * see: https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#histogram
+     * see: https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#histogram
      *
      * Generated from protobuf field <code>optional double sum = 5;</code>
      */
@@ -69,8 +69,8 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * located at powers of the base, where:
      *   base = (2^(2^-scale))
      * The histogram bucket identified by `index`, a signed integer,
-     * contains values that are greater than or equal to (base^index) and
-     * less than (base^(index+1)).
+     * contains values that are greater than (base^index) and
+     * less than or equal to (base^(index+1)).
      * The positive and negative ranges of the histogram are expressed
      * separately.  Negative values are mapped by their absolute value
      * into the negative range using the same scale as the positive range.
@@ -130,6 +130,17 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * Generated from protobuf field <code>optional double max = 13;</code>
      */
     protected $max = null;
+    /**
+     * ZeroThreshold may be optionally set to convey the width of the zero
+     * region. Where the zero region is defined as the closed interval
+     * [-ZeroThreshold, ZeroThreshold].
+     * When ZeroThreshold is 0, zero count bucket stores values that cannot be
+     * expressed using the standard exponential formula as well as values that
+     * have been rounded to zero.
+     *
+     * Generated from protobuf field <code>double zero_threshold = 14;</code>
+     */
+    protected $zero_threshold = 0.0;
 
     /**
      * Constructor.
@@ -162,14 +173,14 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      *           events, and is assumed to be monotonic over the values of these events.
      *           Negative events *can* be recorded, but sum should not be filled out when
      *           doing so.  This is specifically to enforce compatibility w/ OpenMetrics,
-     *           see: https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#histogram
+     *           see: https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#histogram
      *     @type int $scale
      *           scale describes the resolution of the histogram.  Boundaries are
      *           located at powers of the base, where:
      *             base = (2^(2^-scale))
      *           The histogram bucket identified by `index`, a signed integer,
-     *           contains values that are greater than or equal to (base^index) and
-     *           less than (base^(index+1)).
+     *           contains values that are greater than (base^index) and
+     *           less than or equal to (base^(index+1)).
      *           The positive and negative ranges of the histogram are expressed
      *           separately.  Negative values are mapped by their absolute value
      *           into the negative range using the same scale as the positive range.
@@ -197,6 +208,13 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      *           min is the minimum value over (start_time, end_time].
      *     @type float $max
      *           max is the maximum value over (start_time, end_time].
+     *     @type float $zero_threshold
+     *           ZeroThreshold may be optionally set to convey the width of the zero
+     *           region. Where the zero region is defined as the closed interval
+     *           [-ZeroThreshold, ZeroThreshold].
+     *           When ZeroThreshold is 0, zero count bucket stores values that cannot be
+     *           expressed using the standard exponential formula as well as values that
+     *           have been rounded to zero.
      * }
      */
     public function __construct($data = NULL) {
@@ -335,7 +353,7 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * events, and is assumed to be monotonic over the values of these events.
      * Negative events *can* be recorded, but sum should not be filled out when
      * doing so.  This is specifically to enforce compatibility w/ OpenMetrics,
-     * see: https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#histogram
+     * see: https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#histogram
      *
      * Generated from protobuf field <code>optional double sum = 5;</code>
      * @return float
@@ -362,7 +380,7 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * events, and is assumed to be monotonic over the values of these events.
      * Negative events *can* be recorded, but sum should not be filled out when
      * doing so.  This is specifically to enforce compatibility w/ OpenMetrics,
-     * see: https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#histogram
+     * see: https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#histogram
      *
      * Generated from protobuf field <code>optional double sum = 5;</code>
      * @param float $var
@@ -381,8 +399,8 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * located at powers of the base, where:
      *   base = (2^(2^-scale))
      * The histogram bucket identified by `index`, a signed integer,
-     * contains values that are greater than or equal to (base^index) and
-     * less than (base^(index+1)).
+     * contains values that are greater than (base^index) and
+     * less than or equal to (base^(index+1)).
      * The positive and negative ranges of the histogram are expressed
      * separately.  Negative values are mapped by their absolute value
      * into the negative range using the same scale as the positive range.
@@ -402,8 +420,8 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
      * located at powers of the base, where:
      *   base = (2^(2^-scale))
      * The histogram bucket identified by `index`, a signed integer,
-     * contains values that are greater than or equal to (base^index) and
-     * less than (base^(index+1)).
+     * contains values that are greater than (base^index) and
+     * less than or equal to (base^(index+1)).
      * The positive and negative ranges of the histogram are expressed
      * separately.  Negative values are mapped by their absolute value
      * into the negative range using the same scale as the positive range.
@@ -656,6 +674,42 @@ class ExponentialHistogramDataPoint extends \Google\Protobuf\Internal\Message
     {
         GPBUtil::checkDouble($var);
         $this->max = $var;
+
+        return $this;
+    }
+
+    /**
+     * ZeroThreshold may be optionally set to convey the width of the zero
+     * region. Where the zero region is defined as the closed interval
+     * [-ZeroThreshold, ZeroThreshold].
+     * When ZeroThreshold is 0, zero count bucket stores values that cannot be
+     * expressed using the standard exponential formula as well as values that
+     * have been rounded to zero.
+     *
+     * Generated from protobuf field <code>double zero_threshold = 14;</code>
+     * @return float
+     */
+    public function getZeroThreshold()
+    {
+        return $this->zero_threshold;
+    }
+
+    /**
+     * ZeroThreshold may be optionally set to convey the width of the zero
+     * region. Where the zero region is defined as the closed interval
+     * [-ZeroThreshold, ZeroThreshold].
+     * When ZeroThreshold is 0, zero count bucket stores values that cannot be
+     * expressed using the standard exponential formula as well as values that
+     * have been rounded to zero.
+     *
+     * Generated from protobuf field <code>double zero_threshold = 14;</code>
+     * @param float $var
+     * @return $this
+     */
+    public function setZeroThreshold($var)
+    {
+        GPBUtil::checkDouble($var);
+        $this->zero_threshold = $var;
 
         return $this;
     }
