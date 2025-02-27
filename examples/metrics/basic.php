@@ -3,13 +3,15 @@
 // Example based on https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/supplementary-guidelines.md#synchronous-example
 declare(strict_types=1);
 
+namespace OpenTelemetry\Example;
+
 require_once __DIR__ . '/../../vendor/autoload.php';
 
+use OpenTelemetry\API\Common\Time\Clock;
 use OpenTelemetry\Contrib\Otlp\MetricExporter;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SDK\Common\Export\Stream\StreamTransportFactory;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScopeFactory;
-use OpenTelemetry\SDK\Common\Time\ClockFactory;
 use OpenTelemetry\SDK\Metrics\Aggregation\ExplicitBucketHistogramAggregation;
 use OpenTelemetry\SDK\Metrics\Exemplar\ExemplarFilter\WithSampledTraceExemplarFilter;
 use OpenTelemetry\SDK\Metrics\MeterProvider;
@@ -20,8 +22,8 @@ use OpenTelemetry\SDK\Metrics\View\SelectionCriteria\InstrumentNameCriteria;
 use OpenTelemetry\SDK\Metrics\View\ViewTemplate;
 use OpenTelemetry\SDK\Resource\ResourceInfoFactory;
 
-$clock = ClockFactory::getDefault();
-$reader = new ExportingReader(new MetricExporter((new StreamTransportFactory())->create(STDOUT, 'application/x-ndjson'), /*Temporality::CUMULATIVE*/), $clock);
+$clock = Clock::getDefault();
+$reader = new ExportingReader(new MetricExporter((new StreamTransportFactory())->create(STDOUT, 'application/x-ndjson'), /*Temporality::CUMULATIVE*/));
 
 // Let's imagine we export the metrics as Histogram, and to simplify the story we will only have one histogram bucket (-Inf, +Inf):
 $views = new CriteriaViewRegistry();

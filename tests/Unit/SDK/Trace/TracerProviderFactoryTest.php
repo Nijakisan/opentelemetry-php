@@ -4,35 +4,30 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Unit\SDK\Trace;
 
-use AssertWell\PHPUnitGlobalState\EnvironmentVariables;
-use OpenTelemetry\API\Common\Log\LoggerHolder;
+use OpenTelemetry\API\Behavior\Internal\Logging;
+use OpenTelemetry\API\Behavior\Internal\LogWriter\LogWriterInterface;
 use OpenTelemetry\API\Trace\NoopTracerProvider;
 use OpenTelemetry\SDK\Trace\ExporterFactory;
 use OpenTelemetry\SDK\Trace\SamplerFactory;
 use OpenTelemetry\SDK\Trace\SpanProcessorFactory;
 use OpenTelemetry\SDK\Trace\TracerProviderFactory;
+use OpenTelemetry\Tests\TestState;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
 
-/**
- * @covers \OpenTelemetry\SDK\Trace\TracerProviderFactory
- */
+#[CoversClass(TracerProviderFactory::class)]
 class TracerProviderFactoryTest extends TestCase
 {
-    use EnvironmentVariables;
+    use TestState;
 
-    private $logger;
+    /** @var LogWriterInterface&MockObject $logWriter */
+    private LogWriterInterface $logWriter;
 
     public function setUp(): void
     {
-        $this->logger = $this->createMock(LoggerInterface::class);
-        LoggerHolder::set($this->logger);
-    }
-
-    public function tearDown(): void
-    {
-        LoggerHolder::unset();
-        $this->restoreEnvironmentVariables();
+        $this->logWriter = $this->createMock(LogWriterInterface::class);
+        Logging::setLogWriter($this->logWriter);
     }
 
     public function test_factory_creates_tracer(): void
@@ -64,7 +59,7 @@ class TracerProviderFactoryTest extends TestCase
         $spanProcessorFactory->expects($this->once())
             ->method('create')
             ->willThrowException(new \InvalidArgumentException('foo'));
-        $this->logger->expects($this->atLeast(3))->method('log');
+        $this->logWriter->expects($this->atLeast(3))->method('write');
 
         $factory = new TracerProviderFactory($exporterFactory, $samplerFactory, $spanProcessorFactory);
         $factory->create();

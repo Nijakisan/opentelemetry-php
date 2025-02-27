@@ -11,13 +11,11 @@ use OpenTelemetry\SDK\Metrics\Aggregation\LastValueSummary;
 use OpenTelemetry\SDK\Metrics\Data\Gauge;
 use OpenTelemetry\SDK\Metrics\Data\NumberDataPoint;
 use OpenTelemetry\SDK\Metrics\Data\Temporality;
-use OpenTelemetry\SDK\Metrics\Exemplar\FixedSizeReservoir;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \OpenTelemetry\SDK\Metrics\Aggregation\LastValueAggregation
- * @covers \OpenTelemetry\SDK\Metrics\Aggregation\LastValueSummary
- */
+#[CoversClass(LastValueAggregation::class)]
+#[CoversClass(LastValueSummary::class)]
 final class LastValueAggregationTest extends TestCase
 {
     public function test_initialize(): void
@@ -119,14 +117,6 @@ final class LastValueAggregationTest extends TestCase
                 1,
                 Temporality::DELTA,
             ),
-        );
-    }
-
-    public function test_exemplar_reservoir(): void
-    {
-        $this->assertEquals(
-            new FixedSizeReservoir(Attributes::factory()),
-            (new LastValueAggregation())->exemplarReservoir(Attributes::factory()),
         );
     }
 }

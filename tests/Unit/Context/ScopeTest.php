@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Unit\Context;
 
+use Fiber;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\Context\ContextStorage;
+use OpenTelemetry\Context\ContextStorageNode;
 use OpenTelemetry\Context\ScopeInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \OpenTelemetry\Context\ContextStorageNode
- */
+#[CoversClass(ContextStorageNode::class)]
 class ScopeTest extends TestCase
 {
     public function test_scope_close_restores_context(): void
@@ -83,12 +84,10 @@ class ScopeTest extends TestCase
     {
         $scope1 = Context::getCurrent()->activate();
 
-        Context::storage()->fork(1);
-        Context::storage()->switch(1);
-        $this->assertSame(ScopeInterface::INACTIVE, @$scope1->detach() & ScopeInterface::INACTIVE);
+        $fiber = new Fiber(static fn () => @$scope1->detach());
+        $fiber->start();
 
-        Context::storage()->switch(0);
-        Context::storage()->destroy(1);
+        $this->assertSame(ScopeInterface::INACTIVE, $fiber->getReturn() & ScopeInterface::INACTIVE);
     }
 
     public function test_scope_context_returns_context_of_scope(): void
@@ -116,7 +115,7 @@ class ScopeTest extends TestCase
         $scope['key'] = 'value';
         $scope = $storage->scope();
         $this->assertNotNull($scope);
-        $this->assertArrayHasKey('key', $scope); /** @phpstan-ignore-line */
+        $this->assertArrayHasKey('key', $scope);
         $this->assertSame('value', $scope['key']);
 
         unset($scope['key']);

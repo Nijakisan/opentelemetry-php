@@ -4,44 +4,57 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Unit\SDK\Metrics;
 
+use OpenTelemetry\API\Common\Time\TestClock;
 use OpenTelemetry\API\Metrics\ObserverInterface;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
-use OpenTelemetry\SDK\Common\Time\ClockFactory;
 use OpenTelemetry\SDK\Metrics\Aggregation\ExplicitBucketHistogramAggregation;
 use OpenTelemetry\SDK\Metrics\Aggregation\SumAggregation;
 use OpenTelemetry\SDK\Metrics\Counter;
 use OpenTelemetry\SDK\Metrics\Data;
 use OpenTelemetry\SDK\Metrics\Data\Temporality;
 use OpenTelemetry\SDK\Metrics\Histogram;
-use OpenTelemetry\SDK\Metrics\MetricObserver\CallbackDestructor;
-use OpenTelemetry\SDK\Metrics\MetricObserver\MultiObserver;
-use OpenTelemetry\SDK\Metrics\MetricObserverInterface;
+use OpenTelemetry\SDK\Metrics\Instrument;
+use OpenTelemetry\SDK\Metrics\InstrumentType;
+use OpenTelemetry\SDK\Metrics\MetricRegistry\MetricRegistry;
+use OpenTelemetry\SDK\Metrics\MetricRegistry\MetricWriterInterface;
 use OpenTelemetry\SDK\Metrics\ObservableCallback;
+use OpenTelemetry\SDK\Metrics\ObservableCallbackDestructor;
 use OpenTelemetry\SDK\Metrics\ObservableCounter;
+use OpenTelemetry\SDK\Metrics\ObservableInstrumentTrait;
 use OpenTelemetry\SDK\Metrics\ReferenceCounterInterface;
 use OpenTelemetry\SDK\Metrics\StalenessHandler\NoopStalenessHandler;
-use OpenTelemetry\SDK\Metrics\Stream\AsynchronousMetricStream;
-use OpenTelemetry\SDK\Metrics\Stream\StreamWriter;
+use OpenTelemetry\SDK\Metrics\Stream\MetricAggregator;
+use OpenTelemetry\SDK\Metrics\Stream\MetricAggregatorFactory;
 use OpenTelemetry\SDK\Metrics\Stream\SynchronousMetricStream;
 use OpenTelemetry\SDK\Metrics\UpDownCounter;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use stdClass;
+use WeakMap;
 
+#[CoversClass(Counter::class)]
+#[CoversClass(ObservableCounter::class)]
+#[CoversClass(UpDownCounter::class)]
+#[CoversClass(Histogram::class)]
+#[CoversClass(ObservableCallback::class)]
+#[CoversClass(ObservableInstrumentTrait::class)]
 final class InstrumentTest extends TestCase
 {
-
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\Counter
-     */
     public function test_counter(): void
     {
-        $s = new SynchronousMetricStream(null, new SumAggregation(true), null, 0);
-        $c = new Counter(new StreamWriter(null, Attributes::factory(), $s->writable()), new NoopStalenessHandler(), ClockFactory::getDefault());
+        $a = new MetricAggregator(null, new SumAggregation(true));
+        $s = new SynchronousMetricStream(new SumAggregation(true), 0);
+        $w = new MetricRegistry(null, Attributes::factory(), new TestClock(1));
+        $i = new Instrument(InstrumentType::COUNTER, 'test', null, null);
+        $n = $w->registerSynchronousStream($i, $s, $a);
         $r = $s->register(Temporality::DELTA);
 
+        $c = new Counter($w, $i, new NoopStalenessHandler());
         $c->add(5);
         $c->add(7);
         $c->add(3);
 
+        $w->collectAndPush([$n]);
         $this->assertEquals(new Data\Sum(
             [
                 new Data\NumberDataPoint(
@@ -53,23 +66,24 @@ final class InstrumentTest extends TestCase
             ],
             Temporality::DELTA,
             true,
-        ), $s->collect($r, 1));
+        ), $s->collect($r));
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCounter
-     */
     public function test_asynchronous_counter(): void
     {
-        $o = new MultiObserver();
-        $s = new AsynchronousMetricStream(Attributes::factory(), null, new SumAggregation(true), null, $o, 0);
-        $c = new ObservableCounter($o, new NoopStalenessHandler());
+        $a = new MetricAggregatorFactory(null, new SumAggregation(true));
+        $s = new SynchronousMetricStream(new SumAggregation(true), 0);
+        $w = new MetricRegistry(null, Attributes::factory(), new TestClock(1));
+        $i = new Instrument(InstrumentType::ASYNCHRONOUS_COUNTER, 'test', null, null);
+        $n = $w->registerAsynchronousStream($i, $s, $a);
         $r = $s->register(Temporality::CUMULATIVE);
 
+        $c = new ObservableCounter($w, $i, new NoopStalenessHandler(), new WeakMap());
         $c->observe(static function (ObserverInterface $observer): void {
             $observer->observe(5);
         });
 
+        $w->collectAndPush([$n]);
         $this->assertEquals(new Data\Sum(
             [
                 new Data\NumberDataPoint(
@@ -81,17 +95,16 @@ final class InstrumentTest extends TestCase
             ],
             Temporality::CUMULATIVE,
             true,
-        ), $s->collect($r, 1));
+        ), $s->collect($r));
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCounter
-     */
     public function test_asynchronous_counter_weaken(): void
     {
-        $o = new MultiObserver();
-        $s = new AsynchronousMetricStream(Attributes::factory(), null, new SumAggregation(true), null, $o, 0);
-        $c = new ObservableCounter($o, new NoopStalenessHandler());
+        $a = new MetricAggregatorFactory(null, new SumAggregation(true));
+        $s = new SynchronousMetricStream(new SumAggregation(true), 0);
+        $w = new MetricRegistry(null, Attributes::factory(), new TestClock(1));
+        $i = new Instrument(InstrumentType::ASYNCHRONOUS_COUNTER, 'test', null, null);
+        $n = $w->registerAsynchronousStream($i, $s, $a);
         $r = $s->register(Temporality::CUMULATIVE);
 
         $instance = new class() {
@@ -101,29 +114,33 @@ final class InstrumentTest extends TestCase
             }
         };
 
-        $c->observe($instance, true);
+        $c = new ObservableCounter($w, $i, new NoopStalenessHandler(), new WeakMap());
+        $c->observe($instance);
         $instance = null;
 
+        $w->collectAndPush([$n]);
         $this->assertEquals(new Data\Sum(
             [],
             Temporality::CUMULATIVE,
             true,
-        ), $s->collect($r, 1));
+        ), $s->collect($r));
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\UpDownCounter
-     */
     public function test_up_down_counter(): void
     {
-        $s = new SynchronousMetricStream(null, new SumAggregation(false), null, 0);
-        $c = new UpDownCounter(new StreamWriter(null, Attributes::factory(), $s->writable()), new NoopStalenessHandler(), ClockFactory::getDefault());
+        $a = new MetricAggregator(null, new SumAggregation(false));
+        $s = new SynchronousMetricStream(new SumAggregation(false), 0);
+        $w = new MetricRegistry(null, Attributes::factory(), new TestClock(1));
+        $i = new Instrument(InstrumentType::UP_DOWN_COUNTER, 'test', null, null);
+        $n = $w->registerSynchronousStream($i, $s, $a);
         $r = $s->register(Temporality::DELTA);
 
+        $c = new UpDownCounter($w, $i, new NoopStalenessHandler());
         $c->add(5);
         $c->add(7);
         $c->add(-8);
 
+        $w->collectAndPush([$n]);
         $this->assertEquals(new Data\Sum(
             [
                 new Data\NumberDataPoint(
@@ -135,18 +152,19 @@ final class InstrumentTest extends TestCase
             ],
             Temporality::DELTA,
             false,
-        ), $s->collect($r, 1));
+        ), $s->collect($r));
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\Histogram
-     */
     public function test_histogram(): void
     {
-        $s = new SynchronousMetricStream(null, new ExplicitBucketHistogramAggregation([3, 6, 9]), null, 0);
-        $h = new Histogram(new StreamWriter(null, Attributes::factory(), $s->writable()), new NoopStalenessHandler(), ClockFactory::getDefault());
+        $a = new MetricAggregator(null, new ExplicitBucketHistogramAggregation([3, 6, 9]));
+        $s = new SynchronousMetricStream(new ExplicitBucketHistogramAggregation([3, 6, 9]), 0);
+        $w = new MetricRegistry(null, Attributes::factory(), new TestClock(1));
+        $i = new Instrument(InstrumentType::HISTOGRAM, 'test', null, null);
+        $n = $w->registerSynchronousStream($i, $s, $a);
         $r = $s->register(Temporality::DELTA);
 
+        $h = new Histogram($w, $i, new NoopStalenessHandler());
         $h->record(1);
         $h->record(7);
         $h->record(9);
@@ -155,6 +173,7 @@ final class InstrumentTest extends TestCase
         $h->record(8);
         $h->record(7);
 
+        $w->collectAndPush([$n]);
         $this->assertEquals(new Data\Histogram(
             [
                 new Data\HistogramDataPoint(
@@ -170,86 +189,77 @@ final class InstrumentTest extends TestCase
                 ),
             ],
             Temporality::DELTA,
-        ), $s->collect($r, 1));
+        ), $s->collect($r));
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCallback
-     */
     public function test_observable_callback_releases_on_detach(): void
     {
-        $metricObserver = $this->createMock(MetricObserverInterface::class);
-        $metricObserver->method('has')->with(1)->willReturnOnConsecutiveCalls(true, false);
-        $metricObserver->expects($this->once())->method('cancel')->with(1);
+        $writer = $this->createMock(MetricWriterInterface::class);
+        $writer->expects($this->once())->method('unregisterCallback')->with(1);
         $referenceCounter = $this->createMock(ReferenceCounterInterface::class);
         $referenceCounter->expects($this->once())->method('release');
 
-        $callback = new ObservableCallback($metricObserver, $referenceCounter, 1, null);
+        $callback = new ObservableCallback($writer, $referenceCounter, 1, null, null);
         $callback->detach();
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCallback
-     */
     public function test_observable_callback_removes_callback_destructor_token_on_detach(): void
     {
-        $metricObserver = $this->createMock(MetricObserverInterface::class);
-        $metricObserver->method('has')->with(1)->willReturnOnConsecutiveCalls(true, false);
+        $writer = $this->createMock(MetricWriterInterface::class);
         $referenceCounter = $this->createMock(ReferenceCounterInterface::class);
 
-        $callbackDestructor = new CallbackDestructor($metricObserver, $referenceCounter);
-        $callbackDestructor->tokens[1] = 1;
+        $callbackDestructor = new ObservableCallbackDestructor(new WeakMap(), $writer);
+        $callbackDestructor->callbackIds[1] = $referenceCounter;
 
-        $callback = new ObservableCallback($metricObserver, $referenceCounter, 1, $callbackDestructor);
+        $callback = new ObservableCallback($writer, $referenceCounter, 1, $callbackDestructor, new stdClass());
         $callback->detach();
 
-        $this->assertArrayNotHasKey(1, $callbackDestructor->tokens);
+        $this->assertArrayNotHasKey(1, $callbackDestructor->callbackIds);
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCallback
-     */
-    public function test_observable_callback_does_not_release_on_detach_if_invalid_token(): void
-    {
-        $metricObserver = $this->createMock(MetricObserverInterface::class);
-        $metricObserver->method('has')->with(1)->willReturn(false);
-        $metricObserver->expects($this->never())->method('cancel')->with(1);
-        $referenceCounter = $this->createMock(ReferenceCounterInterface::class);
-        $referenceCounter->expects($this->never())->method('release');
-
-        $callback = new ObservableCallback($metricObserver, $referenceCounter, 1, null);
-        $callback->detach();
-    }
-
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCallback
-     */
     public function test_observable_callback_acquires_persistent_on_destruct(): void
     {
-        $metricObserver = $this->createMock(MetricObserverInterface::class);
-        $metricObserver->method('has')->with(1)->willReturn(true);
+        $writer = $this->createMock(MetricWriterInterface::class);
         $referenceCounter = $this->createMock(ReferenceCounterInterface::class);
         $referenceCounter->expects($this->once())->method('acquire')->with(true);
         $referenceCounter->expects($this->once())->method('release');
 
         /** @noinspection PhpExpressionResultUnusedInspection */
-        new ObservableCallback($metricObserver, $referenceCounter, 1, null);
+        new ObservableCallback($writer, $referenceCounter, 1, null, null);
     }
 
-    /**
-     * @covers \OpenTelemetry\SDK\Metrics\ObservableCallback
-     */
     public function test_observable_callback_does_not_acquire_persistent_on_destruct_if_callback_destructor_set(): void
     {
-        $metricObserver = $this->createMock(MetricObserverInterface::class);
-        $metricObserver->method('has')->with(1)->willReturn(true);
+        $writer = $this->createMock(MetricWriterInterface::class);
         $referenceCounter = $this->createMock(ReferenceCounterInterface::class);
         $referenceCounter->expects($this->never())->method('acquire')->with(true);
 
-        $callbackDestructor = new CallbackDestructor($metricObserver, $referenceCounter);
-        $callbackDestructor->tokens[1] = 1;
+        $callbackDestructor = new ObservableCallbackDestructor(new WeakMap(), $writer);
+        $callbackDestructor->callbackIds[1] = $referenceCounter;
 
         /** @noinspection PhpExpressionResultUnusedInspection */
-        new ObservableCallback($metricObserver, $referenceCounter, 1, $callbackDestructor);
+        new ObservableCallback($writer, $referenceCounter, 1, $callbackDestructor, new stdClass());
+    }
+
+    public function test_synchronous_disabled_if_meter_disabled(): void
+    {
+        $w = $this->createMock(MetricWriterInterface::class);
+        $c = $this->createMock(ReferenceCounterInterface::class);
+        $i = new Instrument(InstrumentType::UP_DOWN_COUNTER, 'test', null, null);
+        $w->expects($this->once())->method('enabled')->with($i)->willReturn(false);
+        $counter = new Counter($w, $i, $c);
+
+        $this->assertFalse($counter->isEnabled());
+    }
+
+    public function test_asynchronous_disabled_if_meter_disabled(): void
+    {
+        $w = $this->createMock(MetricWriterInterface::class);
+        $c = $this->createMock(ReferenceCounterInterface::class);
+        $i = new Instrument(InstrumentType::UP_DOWN_COUNTER, 'test', null, null);
+        $w->expects($this->once())->method('enabled')->with($i)->willReturn(false);
+        $counter = new ObservableCounter($w, $i, $c, new WeakMap());
+
+        $this->assertFalse($counter->isEnabled());
     }
 }

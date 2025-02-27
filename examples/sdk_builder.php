@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-use OpenTelemetry\API\Common\Instrumentation\CachedInstrumentation;
+use OpenTelemetry\API\Instrumentation\CachedInstrumentation;
 use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\Contrib\Otlp\MetricExporter;
 use OpenTelemetry\SDK\Common\Export\Http\PsrTransportFactory;
-use OpenTelemetry\SDK\Common\Time\ClockFactory;
+use OpenTelemetry\SDK\Logs\LoggerProvider;
+use OpenTelemetry\SDK\Logs\Processor\SimpleLogRecordProcessor;
 use OpenTelemetry\SDK\Metrics\MeterProvider;
 use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
 use OpenTelemetry\SDK\Resource\ResourceInfoFactory;
@@ -14,23 +15,21 @@ use OpenTelemetry\SDK\Sdk;
 use OpenTelemetry\SDK\Trace\Sampler\AlwaysOnSampler;
 use OpenTelemetry\SDK\Trace\Sampler\ParentBased;
 use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
-use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessorBuilder;
+use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 echo 'Starting SDK builder example' . PHP_EOL;
 
-\OpenTelemetry\API\Common\Log\LoggerHolder::set(new \Monolog\Logger('grpc', [new \Monolog\Handler\StreamHandler('php://stderr')]));
-
 $resource = ResourceInfoFactory::defaultResource();
 $spanExporter = new InMemoryExporter();
+$logRecordExporter = new \OpenTelemetry\SDK\Logs\Exporter\InMemoryExporter();
 
 $reader = new ExportingReader(
     new MetricExporter(
-        PsrTransportFactory::discover()->create('http://collector:4318/v1/metrics', 'application/x-protobuf')
-    ),
-    ClockFactory::getDefault()
+        (new PsrTransportFactory())->create('http://collector:4318/v1/metrics', 'application/x-protobuf')
+    )
 );
 
 $meterProvider = MeterProvider::builder()
@@ -38,9 +37,15 @@ $meterProvider = MeterProvider::builder()
     ->addReader($reader)
     ->build();
 
+$loggerProvider = LoggerProvider::builder()
+    ->addLogRecordProcessor(
+        new SimpleLogRecordProcessor($logRecordExporter)
+    )
+    ->build();
+
 $tracerProvider = TracerProvider::builder()
     ->addSpanProcessor(
-        (new BatchSpanProcessorBuilder($spanExporter))
+        BatchSpanProcessor::builder($spanExporter)
             ->setMeterProvider($meterProvider)
             ->build()
     )
@@ -51,6 +56,7 @@ $tracerProvider = TracerProvider::builder()
 Sdk::builder()
     ->setTracerProvider($tracerProvider)
     ->setMeterProvider($meterProvider)
+    ->setLoggerProvider($loggerProvider)
     ->setPropagator(TraceContextPropagator::getInstance())
     ->setAutoShutdown(true)
     ->buildAndRegisterGlobal();

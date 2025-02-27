@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+
+namespace OpenTelemetry\Example;
+
 require __DIR__ . '/../../../vendor/autoload.php';
 
 use OpenTelemetry\SDK\Trace\SpanDataInterface;
@@ -9,7 +12,7 @@ use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 
 // Create an ArrayObject as the storage for the spans
-$storage = new ArrayObject();
+$storage = new \ArrayObject();
 
 // Boilerplate setup to create a new tracer with an in-memory exporter
 $tracerProvider = new TracerProvider(
@@ -31,6 +34,7 @@ $childSpan2 = $tracer->spanBuilder('bar')->startSpan();
 $childSpan2->end();
 $childSpan1->end();
 $rootSpan->end();
+$rootScope->detach();
 
 /** @var SpanDataInterface $span */
 foreach ($storage as $span) {

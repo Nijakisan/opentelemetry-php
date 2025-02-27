@@ -7,6 +7,7 @@ namespace OpenTelemetry\SDK\Metrics\MetricFactory;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScopeInterface;
 use OpenTelemetry\SDK\Metrics\Instrument;
 use OpenTelemetry\SDK\Metrics\MetricMetadataInterface;
+use OpenTelemetry\SDK\Metrics\MetricRegistry\MetricCollectorInterface;
 use OpenTelemetry\SDK\Metrics\MetricSourceInterface;
 use OpenTelemetry\SDK\Metrics\MetricSourceProviderInterface;
 use OpenTelemetry\SDK\Metrics\Stream\MetricStreamInterface;
@@ -18,33 +19,15 @@ use OpenTelemetry\SDK\Resource\ResourceInfo;
  */
 final class StreamMetricSourceProvider implements MetricSourceProviderInterface, MetricMetadataInterface
 {
-    /**
-     * @readonly
-     */
-    public ViewProjection $view;
-    /**
-     * @readonly
-     */
-    public Instrument $instrument;
-    /**
-     * @readonly
-     */
-    public InstrumentationScopeInterface $instrumentationLibrary;
-    /**
-     * @readonly
-     */
-    public ResourceInfo $resource;
-    /**
-     * @readonly
-     */
-    public MetricStreamInterface $stream;
-    public function __construct(ViewProjection $view, Instrument $instrument, InstrumentationScopeInterface $instrumentationLibrary, ResourceInfo $resource, MetricStreamInterface $stream)
-    {
-        $this->view = $view;
-        $this->instrument = $instrument;
-        $this->instrumentationLibrary = $instrumentationLibrary;
-        $this->resource = $resource;
-        $this->stream = $stream;
+    public function __construct(
+        public readonly ViewProjection $view,
+        public readonly Instrument $instrument,
+        public readonly InstrumentationScopeInterface $instrumentationLibrary,
+        public readonly ResourceInfo $resource,
+        public readonly MetricStreamInterface $stream,
+        public readonly MetricCollectorInterface $metricCollector,
+        public readonly int $streamId,
+    ) {
     }
 
     public function create($temporality): MetricSourceInterface

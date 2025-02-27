@@ -9,14 +9,16 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryTestCase;
-use OpenTelemetry\API\Common\Log\LoggerHolder;
+use OpenTelemetry\API\Behavior\Internal\Logging;
+use OpenTelemetry\API\Behavior\Internal\LogWriter\LogWriterInterface;
+use OpenTelemetry\API\Common\Time\Clock;
+use OpenTelemetry\API\Common\Time\ClockInterface;
+use OpenTelemetry\API\Common\Time\TestClock;
 use OpenTelemetry\API\Trace as API;
 use OpenTelemetry\Context\Context;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SDK\Common\Future\CompletedFuture;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScopeFactory;
-use OpenTelemetry\SDK\Common\Time\ClockFactory;
-use OpenTelemetry\SDK\Common\Time\ClockInterface;
 use OpenTelemetry\SDK\Metrics\MeterProvider;
 use OpenTelemetry\SDK\Metrics\MetricExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
@@ -27,30 +29,27 @@ use OpenTelemetry\SDK\Trace\ReadWriteSpanInterface;
 use OpenTelemetry\SDK\Trace\SpanDataInterface;
 use OpenTelemetry\SDK\Trace\SpanExporterInterface;
 use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor;
+use OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessorBuilder;
 use OpenTelemetry\SDK\Trace\SpanProcessorInterface;
-use OpenTelemetry\Tests\Unit\SDK\Util\TestClock;
-use Psr\Log\LoggerInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\MockObject\MockObject;
 use Psr\Log\LogLevel;
-use Psr\Log\NullLogger;
 
-/**
- * @covers \OpenTelemetry\SDK\Trace\SpanProcessor\BatchSpanProcessor
- */
+#[CoversClass(BatchSpanProcessor::class)]
 class BatchSpanProcessorTest extends MockeryTestCase
 {
     private TestClock $testClock;
+    /** @var LogWriterInterface&MockObject $logWriter */
+    private LogWriterInterface $logWriter;
 
     protected function setUp(): void
     {
-        LoggerHolder::set(new NullLogger());
+        $this->logWriter = $this->createMock(LogWriterInterface::class);
+        Logging::setLogWriter($this->logWriter);
         $this->testClock = new TestClock();
 
-        ClockFactory::setDefault($this->testClock);
-    }
-
-    protected function tearDown(): void
-    {
-        ClockFactory::setDefault(null);
+        Clock::setDefault($this->testClock);
     }
 
     public function test_export_batch_size_met(): void
@@ -83,9 +82,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
         }
     }
 
-    /**
-     * @dataProvider scheduledDelayProvider
-     */
+    #[DataProvider('scheduledDelayProvider')]
     public function test_export_scheduled_delay(int $exportDelay, int $advanceByNano, bool $expectedFlush): void
     {
         $batchSize = 2;
@@ -118,7 +115,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
         }
     }
 
-    public function scheduledDelayProvider()
+    public static function scheduledDelayProvider(): array
     {
         return [
             'no clock advance' => [1000, 0, false],
@@ -266,6 +263,9 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $batchProcessor->forceFlush();
     }
 
+    /**
+     * @psalm-suppress UndefinedVariable
+     */
     public function test_force_flush_ended_spans(): void
     {
         $batchSize = 3;
@@ -306,6 +306,10 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $processor->forceFlush();
     }
 
+    /**
+     * @psalm-suppress UndefinedVariable
+     * @psalm-suppress RedundantCondition
+     */
     public function test_queue_size_exceeded_drops_spans(): void
     {
         $exporter = $this->createMock(SpanExporterInterface::class);
@@ -372,8 +376,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $exporter->method('forceFlush')->willReturn(true);
         $exporter->method('export')->willThrowException(new LogicException());
 
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects($this->once())->method('log')->with(LogLevel::ERROR);
+        $this->logWriter->expects($this->once())->method('write')->with(LogLevel::ERROR);
 
         $processor = new BatchSpanProcessor($exporter, $this->testClock);
 
@@ -381,14 +384,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $processor->onStart($span, Context::getCurrent());
         $processor->onEnd($span);
 
-        $previousLogger = LoggerHolder::get();
-        LoggerHolder::set($logger);
-
-        try {
-            $processor->forceFlush();
-        } finally {
-            LoggerHolder::set($previousLogger);
-        }
+        $processor->forceFlush();
     }
 
     public function test_throwing_exporter_flush(): void
@@ -408,6 +404,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
 
     public function test_throwing_exporter_flush_cannot_rethrow_in_original_caller_logs_error(): void
     {
+        $processor = null;
         $exporter = $this->createMock(SpanExporterInterface::class);
         $exporter->method('forceFlush')->willReturnCallback(function () use (&$processor) {
             /** @var SpanProcessorInterface $processor */
@@ -419,8 +416,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
         });
         $exporter->method('shutdown')->willThrowException(new LogicException());
 
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects($this->once())->method('log')->with(LogLevel::ERROR);
+        $this->logWriter->expects($this->once())->method('write')->with(LogLevel::ERROR);
 
         $processor = new BatchSpanProcessor($exporter, $this->testClock);
 
@@ -428,20 +424,14 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $processor->onStart($span, Context::getCurrent());
         $processor->onEnd($span);
 
-        $previousLogger = LoggerHolder::get();
-        LoggerHolder::set($logger);
-
-        try {
-            $processor->forceFlush();
-        } finally {
-            LoggerHolder::set($previousLogger);
-        }
+        $processor->forceFlush();
     }
 
     public function test_throwing_exporter_flush_rethrows_in_original_caller(): void
     {
+        $processor = null;
         $exporter = $this->createMock(SpanExporterInterface::class);
-        $exporter->method('forceFlush')->willReturnCallback(function () use (&$processor) {
+        $exporter->method('forceFlush')->willReturnCallback(function () use (&$processor): never {
             /** @var SpanProcessorInterface $processor */
             $span = $this->createSampledSpanMock();
             $processor->onStart($span, Context::getCurrent());
@@ -463,14 +453,11 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $processor->forceFlush();
     }
 
-    /**
-     * @requires PHP >= 8.0
-     */
     public function test_self_diagnostics(): void
     {
         $clock = new TestClock();
         $metrics = new InMemoryExporter();
-        $reader = new ExportingReader($metrics, $clock);
+        $reader = new ExportingReader($metrics);
         $meterProvider = new MeterProvider(
             null,
             ResourceInfoFactory::emptyResource(),
@@ -487,7 +474,7 @@ class BatchSpanProcessorTest extends MockeryTestCase
 
         $processor = new BatchSpanProcessor(
             $exporter,
-            ClockFactory::getDefault(),
+            Clock::getDefault(),
             2048,
             5000,
             30000,
@@ -540,6 +527,12 @@ class BatchSpanProcessorTest extends MockeryTestCase
         $this->expectException(InvalidArgumentException::class);
         $exporter = $this->createMock(SpanExporterInterface::class);
         new BatchSpanProcessor($exporter, $this->testClock, 2, 5000, 30000, 3);
+    }
+
+    public function test_get_builder(): void
+    {
+        $exporter = $this->createMock(SpanExporterInterface::class);
+        $this->assertInstanceOf(BatchSpanProcessorBuilder::class, BatchSpanProcessor::builder($exporter));
     }
 
     private function createSampledSpanMock()

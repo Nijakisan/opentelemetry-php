@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Contrib\Otlp;
 
-use OpenTelemetry\API\Common\Signal\Signals;
+use OpenTelemetry\API\Signals;
 use OpenTelemetry\SDK\Common\Configuration\Configuration;
 use OpenTelemetry\SDK\Common\Configuration\Defaults;
 use OpenTelemetry\SDK\Common\Configuration\Variables;
 use OpenTelemetry\SDK\Common\Export\TransportFactoryInterface;
 use OpenTelemetry\SDK\Common\Export\TransportInterface;
-use OpenTelemetry\SDK\Common\Otlp\HttpEndpointResolver;
+use OpenTelemetry\SDK\Metrics\Data\Temporality;
 use OpenTelemetry\SDK\Metrics\MetricExporterFactoryInterface;
 use OpenTelemetry\SDK\Metrics\MetricExporterInterface;
 use OpenTelemetry\SDK\Registry;
@@ -19,11 +19,8 @@ class MetricExporterFactory implements MetricExporterFactoryInterface
 {
     private const DEFAULT_COMPRESSION = 'none';
 
-    private ?TransportFactoryInterface $transportFactory;
-
-    public function __construct(?TransportFactoryInterface $transportFactory = null)
+    public function __construct(private readonly ?TransportFactoryInterface $transportFactory = null)
     {
-        $this->transportFactory = $transportFactory;
     }
 
     /**
@@ -34,8 +31,9 @@ class MetricExporterFactory implements MetricExporterFactoryInterface
         $protocol = Configuration::has(Variables::OTEL_EXPORTER_OTLP_METRICS_PROTOCOL)
             ? Configuration::getEnum(Variables::OTEL_EXPORTER_OTLP_METRICS_PROTOCOL)
             : Configuration::getEnum(Variables::OTEL_EXPORTER_OTLP_PROTOCOL);
+        $temporality = $this->getTemporality();
 
-        return new MetricExporter($this->buildTransport($protocol));
+        return new MetricExporter($this->buildTransport($protocol), $temporality);
     }
 
     /**
@@ -46,15 +44,12 @@ class MetricExporterFactory implements MetricExporterFactoryInterface
         /**
          * @todo (https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/sdk.md#periodic-exporting-metricreader)
          * - OTEL_METRIC_EXPORT_INTERVAL
-         * - OTEL_METRIC_EXPORT_TIMEOUT
          */
         $endpoint = $this->getEndpoint($protocol);
 
-        $headers = Configuration::has(Variables::OTEL_EXPORTER_OTLP_METRICS_HEADERS)
-            ? Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_METRICS_HEADERS)
-            : Configuration::getMap(Variables::OTEL_EXPORTER_OTLP_HEADERS);
-        $headers += OtlpUtil::getUserAgentHeader();
+        $headers = OtlpUtil::getHeaders(Signals::METRICS);
         $compression = $this->getCompression();
+        $timeout = $this->getTimeout();
 
         $factoryClass = Registry::transportFactory($protocol);
         $factory = $this->transportFactory ?: new $factoryClass();
@@ -64,7 +59,23 @@ class MetricExporterFactory implements MetricExporterFactoryInterface
             Protocols::contentType($protocol),
             $headers,
             $compression,
+            $timeout,
         );
+    }
+
+    /**
+     * @phpstan-ignore-next-line
+     */
+    private function getTemporality(): string|Temporality|null
+    {
+        $value = Configuration::getEnum(Variables::OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE);
+
+        return match (strtolower($value)) {
+            'cumulative' => Temporality::CUMULATIVE,
+            'delta' => Temporality::DELTA,
+            'lowmemory' => null,
+            default => throw new \UnexpectedValueException('Unknown temporality: ' . $value),
+        };
     }
 
     private function getCompression(): string
@@ -72,6 +83,15 @@ class MetricExporterFactory implements MetricExporterFactoryInterface
         return Configuration::has(Variables::OTEL_EXPORTER_OTLP_METRICS_COMPRESSION) ?
             Configuration::getEnum(Variables::OTEL_EXPORTER_OTLP_METRICS_COMPRESSION) :
             Configuration::getEnum(Variables::OTEL_EXPORTER_OTLP_COMPRESSION, self::DEFAULT_COMPRESSION);
+    }
+
+    private function getTimeout(): float
+    {
+        $value = Configuration::has(Variables::OTEL_EXPORTER_OTLP_METRICS_TIMEOUT) ?
+            Configuration::getInt(Variables::OTEL_EXPORTER_OTLP_METRICS_TIMEOUT) :
+            Configuration::getInt(Variables::OTEL_EXPORTER_OTLP_TIMEOUT);
+
+        return $value/1000;
     }
 
     private function getEndpoint(string $protocol): string

@@ -27,6 +27,13 @@ use function serialize;
 
 final class MetricConverter
 {
+    private readonly ProtobufSerializer $serializer;
+
+    public function __construct(?ProtobufSerializer $serializer = null)
+    {
+        $this->serializer = $serializer ?? ProtobufSerializer::getDefault();
+    }
+
     /**
      * @param iterable<SDK\Metrics\Data\Metric> $batch
      */
@@ -125,15 +132,11 @@ final class MetricConverter
 
     private function convertTemporality($temporality): int
     {
-        switch ($temporality) {
-            case SDK\Metrics\Data\Temporality::DELTA:
-                return AggregationTemporality::AGGREGATION_TEMPORALITY_DELTA;
-            case SDK\Metrics\Data\Temporality::CUMULATIVE:
-                return AggregationTemporality::AGGREGATION_TEMPORALITY_CUMULATIVE;
-        }
-
-        // @codeCoverageIgnoreStart
-        return AggregationTemporality::AGGREGATION_TEMPORALITY_UNSPECIFIED;
+        return match ($temporality) {
+            SDK\Metrics\Data\Temporality::DELTA => AggregationTemporality::AGGREGATION_TEMPORALITY_DELTA,
+            SDK\Metrics\Data\Temporality::CUMULATIVE => AggregationTemporality::AGGREGATION_TEMPORALITY_CUMULATIVE,
+            default => AggregationTemporality::AGGREGATION_TEMPORALITY_UNSPECIFIED,
+        };
         // @codeCoverageIgnoreEnd
     }
 
@@ -218,8 +221,8 @@ final class MetricConverter
         $pExemplar = new Exemplar();
         $this->setFilteredAttributes($pExemplar, $exemplar->attributes);
         $pExemplar->setTimeUnixNano($exemplar->timestamp);
-        $pExemplar->setSpanId(hex2bin((string) $exemplar->spanId));
-        $pExemplar->setTraceId(hex2bin((string) $exemplar->traceId));
+        $pExemplar->setSpanId($this->serializer->serializeSpanId(hex2bin((string) $exemplar->spanId)));
+        $pExemplar->setTraceId($this->serializer->serializeTraceId(hex2bin((string) $exemplar->traceId)));
         if (is_int($exemplar->value)) {
             $pExemplar->setAsInt($exemplar->value);
         }

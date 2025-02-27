@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace OpenTelemetry\Tests\Unit\SDK\Common\Configuration\Parser;
 
 use InvalidArgumentException;
+use OpenTelemetry\SDK\Common\Configuration\Parser\MapParser;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \OpenTelemetry\SDK\Common\Configuration\Parser\MapParser
- */
+#[CoversClass(MapParser::class)]
 class MapParserTest extends TestCase
 {
     private const MAP_VALUES = [
@@ -29,6 +30,10 @@ class MapParserTest extends TestCase
             'foo =bar,bar= baz, baz = foo',
             ['foo' => 'bar', 'bar' => 'baz', 'baz' => 'foo'],
         ],
+        'base64 encoded value is split correctly and trailing equals sign is kept in value' => [
+            'Authorization=Basic 1234abc=,bar=baz',
+            ['Authorization' => 'Basic 1234abc=', 'bar' => 'baz'],
+        ],
     ];
 
     private const INVALID_VALUES = [
@@ -36,33 +41,29 @@ class MapParserTest extends TestCase
         'no equals' => ['foo=bar,barbaz'],
     ];
 
-    /**
-     * @dataProvider mapValueProvider
-     */
+    #[DataProvider('mapValueProvider')]
     public function test_map_values_return_array(string $value, array $expected): void
     {
         $this->assertSame(
-            \OpenTelemetry\SDK\Common\Configuration\Parser\MapParser::parse($value),
+            MapParser::parse($value),
             $expected
         );
     }
 
-    /**
-     * @dataProvider invalidValueProvider
-     */
+    #[DataProvider('invalidValueProvider')]
     public function test_invalid_values_throw_exception(string $value): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        \OpenTelemetry\SDK\Common\Configuration\Parser\MapParser::parse($value);
+        MapParser::parse($value);
     }
 
-    public function mapValueProvider(): array
+    public static function mapValueProvider(): array
     {
         return self::MAP_VALUES;
     }
 
-    public function invalidValueProvider(): array
+    public static function invalidValueProvider(): array
     {
         return self::INVALID_VALUES;
     }

@@ -12,11 +12,10 @@ use OpenTelemetry\Context\ContextInterface;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SDK\Trace\Sampler\AlwaysOffSampler;
 use OpenTelemetry\SDK\Trace\SamplingResult;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversNothing
- */
+#[CoversNothing]
 class AlwaysOffSamplerTest extends TestCase
 {
     public function test_always_off_sampler(): void
@@ -44,7 +43,7 @@ class AlwaysOffSamplerTest extends TestCase
 
     private function createParentContext(bool $sampled, bool $isRemote, ?API\TraceStateInterface $traceState = null): ContextInterface
     {
-        $traceFlag = $sampled ? API\SpanContextInterface::TRACE_FLAG_SAMPLED : API\SpanContextInterface::TRACE_FLAG_DEFAULT;
+        $traceFlag = $sampled ? API\TraceFlags::SAMPLED : API\TraceFlags::DEFAULT;
 
         if ($isRemote) {
             $spanContext = SpanContext::createFromRemoteParent(
