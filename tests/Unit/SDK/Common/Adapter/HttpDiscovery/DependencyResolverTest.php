@@ -6,11 +6,13 @@ namespace OpenTelemetry\Tests\Unit\SDK\Common\Adapter\HttpDiscovery;
 
 use Generator;
 use Http\Client\HttpAsyncClient;
-use Http\Client\HttpClient;
+use Mockery;
 use OpenTelemetry\SDK\Common\Adapter\HttpDiscovery\DependencyResolver;
 use OpenTelemetry\SDK\Common\Http\HttpPlug\Client\ResolverInterface as HttpPlugClientResolverInterface;
 use OpenTelemetry\SDK\Common\Http\Psr\Client\ResolverInterface as PsrClientResolverInterface;
 use OpenTelemetry\SDK\Common\Http\Psr\Message\FactoryResolverInterface as MessageFactoryResolverInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface as PsrClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -21,9 +23,7 @@ use Psr\Http\Message\UploadedFileFactoryInterface;
 use Psr\Http\Message\UriFactoryInterface;
 use ReflectionClass;
 
-/**
- * @covers \OpenTelemetry\SDK\Common\Adapter\HttpDiscovery\DependencyResolver
- */
+#[CoversClass(DependencyResolver::class)]
 class DependencyResolverTest extends TestCase
 {
     private const DEPENDENCIES = [
@@ -39,7 +39,6 @@ class DependencyResolverTest extends TestCase
             PsrClientInterface::class,
         ],
         HttpPlugClientResolverInterface::class => [
-            HttpClient::class,
             HttpAsyncClient::class,
         ],
     ];
@@ -49,9 +48,7 @@ class DependencyResolverTest extends TestCase
         PsrClientResolverInterface::class => ['Client', 'PsrClient'],
     ];
 
-    /**
-     * @dataProvider provideDependencies
-     */
+    #[DataProvider('provideDependencies')]
     public function test_resolve(string $method, object $dependency, array $arguments): void
     {
         $instance = DependencyResolver::create(...$arguments);
@@ -62,18 +59,18 @@ class DependencyResolverTest extends TestCase
         );
     }
 
-    public function provideDependencies(): Generator
+    public static function provideDependencies(): Generator
     {
         $arguments = [];
         $dependencies = [];
 
         foreach (self::DEPENDENCIES as $resolverInterface => $interfaces) {
-            $resolver = $this->createMock($resolverInterface);
+            $resolver = Mockery::mock($resolverInterface);
 
             foreach ($interfaces as $interface) {
-                $method = $this->resolveMethodName($interface, self::METHOD_NAME_REPLACEMENTS[$resolverInterface]);
-                $dependency = $this->createMock($interface);
-                $resolver->method($method)->willReturn($dependency);
+                $method = self::resolveMethodName($interface, self::METHOD_NAME_REPLACEMENTS[$resolverInterface]);
+                $dependency = Mockery::mock($interface);
+                $resolver->allows([$method => $dependency]);
                 $dependencies[$method] = $dependency;
             }
 
@@ -88,7 +85,7 @@ class DependencyResolverTest extends TestCase
     /**
      *  @psalm-param class-string $interface
      */
-    private function resolveMethodName(string $interface, array $replacements = []): string
+    private static function resolveMethodName(string $interface, array $replacements = []): string
     {
         $interface = (new ReflectionClass($interface))->getShortName();
 

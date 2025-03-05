@@ -11,6 +11,7 @@ parameters:
         # - ./examples TODO: Uncomment this once examples are updated
     excludePaths:
         - tests/TraceContext/W3CTestService
+        - tests/Unit/Config/SDK/Configuration/ExampleSdk
     ignoreErrors:
         -
             message: "#Call to an undefined method .*#"
@@ -29,3 +30,24 @@ parameters:
             message: "#Call to an undefined method .*:shouldHaveReceived.*#"
             paths:
                 - tests
+        -
+            message: "#Call to an undefined method .*:expects.*#"
+            paths:
+                - tests
+        -
+            message: "#Call to an undefined method Symfony\\\\Component\\\\Config\\\\Definition\\\\Builder\\\\NodeParentInterface::.*#"
+            paths:
+                - src/Config/SDK
+                - tests/Integration/Config
+        -
+            message: "#Cannot call method .* on null#"
+            paths:
+                - tests/Integration/SDK/Trace
+        -
+            message: "#Property .*Logger.*config .* does not accept .*Config?#"
+            paths:
+                - src/SDK/Logs
+        -
+            message: "#.*return with type T is not subtype.*#"
+            paths:
+                - src/SDK/Common/InstrumentationScope

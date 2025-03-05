@@ -1,6 +1,9 @@
 <?php
 
 declare(strict_types=1);
+
+namespace OpenTelemetry\Example;
+
 require __DIR__ . '/../../../vendor/autoload.php';
 
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
@@ -13,14 +16,14 @@ use OpenTelemetry\SemConv\ResourceAttributes;
 
 echo 'Starting ConsoleSpanExporter' . PHP_EOL;
 
-$resource = ResourceInfoFactory::merge(ResourceInfo::create(Attributes::create([
-    //@see https://github.com/open-telemetry/opentelemetry-specification/tree/main/specification/resource/semantic_conventions
+$resource = ResourceInfoFactory::defaultResource()->merge(ResourceInfo::create(Attributes::create([
+    //@see https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/semantic-conventions.md
     ResourceAttributes::SERVICE_NAMESPACE => 'foo',
     ResourceAttributes::SERVICE_NAME => 'bar',
     ResourceAttributes::SERVICE_INSTANCE_ID => 1,
     ResourceAttributes::SERVICE_VERSION => '0.1',
-    ResourceAttributes::DEPLOYMENT_ENVIRONMENT => 'development',
-])), ResourceInfoFactory::defaultResource());
+    ResourceAttributes::DEPLOYMENT_ENVIRONMENT_NAME => 'development',
+])));
 
 $tracerProvider =  new TracerProvider(
     new SimpleSpanProcessor(

@@ -4,21 +4,27 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Unit\Contrib\Otlp;
 
-use AssertWell\PHPUnitGlobalState\EnvironmentVariables;
 use OpenTelemetry\Contrib\Otlp\MetricExporterFactory;
 use OpenTelemetry\SDK\Common\Configuration\KnownValues;
 use OpenTelemetry\SDK\Common\Configuration\Variables;
 use OpenTelemetry\SDK\Common\Export\TransportFactoryInterface;
 use OpenTelemetry\SDK\Common\Export\TransportInterface;
+use OpenTelemetry\SDK\Metrics\AggregationTemporalitySelectorInterface;
+use OpenTelemetry\SDK\Metrics\Data\Temporality;
+use OpenTelemetry\SDK\Metrics\MetricMetadataInterface;
+use OpenTelemetry\Tests\TestState;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * @covers \OpenTelemetry\Contrib\Otlp\MetricExporterFactory
  * @psalm-suppress UndefinedInterfaceMethod
  */
+#[CoversClass(MetricExporterFactory::class)]
 class MetricExporterFactoryTest extends TestCase
 {
-    use EnvironmentVariables;
+    use TestState;
+
     private TransportFactoryInterface $transportFactory;
     private TransportInterface $transport;
 
@@ -26,11 +32,6 @@ class MetricExporterFactoryTest extends TestCase
     {
         $this->transportFactory = $this->createMock(TransportFactoryInterface::class);
         $this->transport = $this->createMock(TransportInterface::class);
-    }
-
-    public function tearDown(): void
-    {
-        $this->restoreEnvironmentVariables();
     }
 
     public function test_unknown_protocol_exception(): void
@@ -41,10 +42,60 @@ class MetricExporterFactoryTest extends TestCase
         $factory->create();
     }
 
-    /**
-     * @dataProvider configProvider
-     */
-    public function test_create(array $env, string $endpoint, string $protocol, string $compression, array $headerKeys = []): void
+    #[DataProvider('temporalityProvider')]
+    public function test_create_with_temporality(array $env, ?string $expected): void
+    {
+        // @phpstan-ignore-next-line
+        $this->transportFactory->method('create')->willReturn($this->transport);
+        // @phpstan-ignore-next-line
+        $this->transport->method('contentType')->willReturn('application/json');
+
+        foreach ($env as $k => $v) {
+            $this->setEnvironmentVariable($k, $v);
+        }
+        $factory = new MetricExporterFactory($this->transportFactory);
+        $exporter = $factory->create();
+
+        $this->assertInstanceOf(AggregationTemporalitySelectorInterface::class, $exporter);
+        $this->assertSame($expected, $exporter->temporality($this->createMock(MetricMetadataInterface::class)));
+    }
+
+    public static function temporalityProvider(): array
+    {
+        return [
+            'default' => [
+                [],
+                Temporality::CUMULATIVE,
+            ],
+            'cumulative' => [
+                [
+                    'OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE' => 'cumulative',
+                ],
+                Temporality::CUMULATIVE,
+            ],
+            'delta' => [
+                [
+                    'OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE' => 'delta',
+                ],
+                Temporality::DELTA,
+            ],
+            'low memory' => [
+                [
+                    'OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE' => 'lowmemory',
+                ],
+                null,
+            ],
+            'CuMuLaTiVe (mixed case)' => [
+                [
+                    'OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE' => 'cumulative',
+                ],
+                Temporality::CUMULATIVE,
+            ],
+        ];
+    }
+
+    #[DataProvider('configProvider')]
+    public function test_create(array $env, string $endpoint, string $protocol, string $compression, array $headerKeys = [], array $expectedValues = []): void
     {
         foreach ($env as $k => $v) {
             $this->setEnvironmentVariable($k, $v);
@@ -57,8 +108,11 @@ class MetricExporterFactoryTest extends TestCase
             ->with(
                 $this->equalTo($endpoint),
                 $this->equalTo($protocol),
-                $this->callback(function ($headers) use ($headerKeys) {
+                $this->callback(function ($headers) use ($headerKeys, $expectedValues) {
                     $this->assertEqualsCanonicalizing($headerKeys, array_keys($headers));
+                    foreach ($expectedValues as $key => $value) {
+                        $this->assertSame($value, $headers[$key]);
+                    }
 
                     return true;
                 }),
@@ -71,7 +125,7 @@ class MetricExporterFactoryTest extends TestCase
         $factory->create();
     }
 
-    public function configProvider(): array
+    public static function configProvider(): array
     {
         $defaultHeaderKeys = ['User-Agent'];
 
@@ -156,6 +210,22 @@ class MetricExporterFactoryTest extends TestCase
                 'protocol' => 'application/x-protobuf',
                 'compression' => 'none',
                 'headerKeys' => array_merge($defaultHeaderKeys, ['key3', 'key4']),
+                'expectedValues' => [
+                    'key3' => 'foo',
+                    'key4' => 'bar',
+                ],
+            ],
+            'url-encoded headers' => [
+                'env' => [
+                    Variables::OTEL_EXPORTER_OTLP_HEADERS => 'Authorization=Basic%20AAA',
+                ],
+                'endpoint' => 'http://localhost:4318/v1/metrics',
+                'protocol' => 'application/x-protobuf',
+                'compression' => 'none',
+                'headerKeys' => array_merge($defaultHeaderKeys, ['Authorization']),
+                'expectedValues' => [
+                    'Authorization' => 'Basic AAA',
+                ],
             ],
         ];
     }

@@ -18,10 +18,9 @@ class Span extends \Google\Protobuf\Internal\Message
 {
     /**
      * A unique identifier for a trace. All spans from the same trace share
-     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     * is considered invalid.
-     * This field is semantically required. Receiver should generate new
-     * random trace_id if empty or invalid trace_id was received.
+     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     * of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
      * This field is required.
      *
      * Generated from protobuf field <code>bytes trace_id = 1;</code>
@@ -29,10 +28,9 @@ class Span extends \Google\Protobuf\Internal\Message
     protected $trace_id = '';
     /**
      * A unique identifier for a span within a trace, assigned when the span
-     * is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     * invalid.
-     * This field is semantically required. Receiver should generate new
-     * random span_id if empty or invalid span_id was received.
+     * is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     * other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
      * This field is required.
      *
      * Generated from protobuf field <code>bytes span_id = 2;</code>
@@ -53,6 +51,27 @@ class Span extends \Google\Protobuf\Internal\Message
      * Generated from protobuf field <code>bytes parent_span_id = 4;</code>
      */
     protected $parent_span_id = '';
+    /**
+     * Flags, a bit field.
+     * Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     * Context specification. To read the 8-bit W3C trace flag, use
+     * `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     * See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     * Bits 8 and 9 represent the 3 states of whether a span's parent
+     * is remote. The states are (unknown, is not remote, is remote).
+     * To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     * To read whether the span is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     * When creating span messages, if the message is logically forwarded from another source
+     * with an equivalent flags fields (i.e., usually another OTLP span message), the field SHOULD
+     * be copied as-is. If creating from a source that does not have an equivalent flags field
+     * (such as a runtime representation of an OpenTelemetry span), the high 22 bits MUST
+     * be set to zero.
+     * Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     * [Optional].
+     *
+     * Generated from protobuf field <code>fixed32 flags = 16;</code>
+     */
+    protected $flags = 0;
     /**
      * A description of the span's operation.
      * For example, the name can be a qualified method name or a file name
@@ -99,8 +118,8 @@ class Span extends \Google\Protobuf\Internal\Message
      * like server name can be set using the resource API. Examples of attributes:
      *     "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
      *     "/http/server_latency": 300
-     *     "abc.com/myattribute": true
-     *     "abc.com/score": 10.239
+     *     "example.com/myattribute": true
+     *     "example.com/score": 10.239
      * The OpenTelemetry API specification further restricts the allowed value types:
      * https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute
      * Attribute keys MUST be unique (it is not allowed to have more than one
@@ -160,17 +179,15 @@ class Span extends \Google\Protobuf\Internal\Message
      *
      *     @type string $trace_id
      *           A unique identifier for a trace. All spans from the same trace share
-     *           the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     *           is considered invalid.
-     *           This field is semantically required. Receiver should generate new
-     *           random trace_id if empty or invalid trace_id was received.
+     *           the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     *           of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     *           is zero-length and thus is also invalid).
      *           This field is required.
      *     @type string $span_id
      *           A unique identifier for a span within a trace, assigned when the span
-     *           is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     *           invalid.
-     *           This field is semantically required. Receiver should generate new
-     *           random span_id if empty or invalid span_id was received.
+     *           is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     *           other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     *           is zero-length and thus is also invalid).
      *           This field is required.
      *     @type string $trace_state
      *           trace_state conveys information about request position in multiple distributed tracing graphs.
@@ -179,6 +196,23 @@ class Span extends \Google\Protobuf\Internal\Message
      *     @type string $parent_span_id
      *           The `span_id` of this span's parent span. If this is a root span, then this
      *           field must be empty. The ID is an 8-byte array.
+     *     @type int $flags
+     *           Flags, a bit field.
+     *           Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     *           Context specification. To read the 8-bit W3C trace flag, use
+     *           `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     *           See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     *           Bits 8 and 9 represent the 3 states of whether a span's parent
+     *           is remote. The states are (unknown, is not remote, is remote).
+     *           To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     *           To read whether the span is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     *           When creating span messages, if the message is logically forwarded from another source
+     *           with an equivalent flags fields (i.e., usually another OTLP span message), the field SHOULD
+     *           be copied as-is. If creating from a source that does not have an equivalent flags field
+     *           (such as a runtime representation of an OpenTelemetry span), the high 22 bits MUST
+     *           be set to zero.
+     *           Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     *           [Optional].
      *     @type string $name
      *           A description of the span's operation.
      *           For example, the name can be a qualified method name or a file name
@@ -209,8 +243,8 @@ class Span extends \Google\Protobuf\Internal\Message
      *           like server name can be set using the resource API. Examples of attributes:
      *               "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
      *               "/http/server_latency": 300
-     *               "abc.com/myattribute": true
-     *               "abc.com/score": 10.239
+     *               "example.com/myattribute": true
+     *               "example.com/score": 10.239
      *           The OpenTelemetry API specification further restricts the allowed value types:
      *           https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute
      *           Attribute keys MUST be unique (it is not allowed to have more than one
@@ -242,10 +276,9 @@ class Span extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a trace. All spans from the same trace share
-     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     * is considered invalid.
-     * This field is semantically required. Receiver should generate new
-     * random trace_id if empty or invalid trace_id was received.
+     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     * of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
      * This field is required.
      *
      * Generated from protobuf field <code>bytes trace_id = 1;</code>
@@ -258,10 +291,9 @@ class Span extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a trace. All spans from the same trace share
-     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes
-     * is considered invalid.
-     * This field is semantically required. Receiver should generate new
-     * random trace_id if empty or invalid trace_id was received.
+     * the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+     * of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
      * This field is required.
      *
      * Generated from protobuf field <code>bytes trace_id = 1;</code>
@@ -278,10 +310,9 @@ class Span extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a span within a trace, assigned when the span
-     * is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     * invalid.
-     * This field is semantically required. Receiver should generate new
-     * random span_id if empty or invalid span_id was received.
+     * is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     * other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
      * This field is required.
      *
      * Generated from protobuf field <code>bytes span_id = 2;</code>
@@ -294,10 +325,9 @@ class Span extends \Google\Protobuf\Internal\Message
 
     /**
      * A unique identifier for a span within a trace, assigned when the span
-     * is created. The ID is an 8-byte array. An ID with all zeroes is considered
-     * invalid.
-     * This field is semantically required. Receiver should generate new
-     * random span_id if empty or invalid span_id was received.
+     * is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+     * other than 8 bytes is considered invalid (empty string in OTLP/JSON
+     * is zero-length and thus is also invalid).
      * This field is required.
      *
      * Generated from protobuf field <code>bytes span_id = 2;</code>
@@ -366,6 +396,62 @@ class Span extends \Google\Protobuf\Internal\Message
     {
         GPBUtil::checkString($var, False);
         $this->parent_span_id = $var;
+
+        return $this;
+    }
+
+    /**
+     * Flags, a bit field.
+     * Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     * Context specification. To read the 8-bit W3C trace flag, use
+     * `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     * See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     * Bits 8 and 9 represent the 3 states of whether a span's parent
+     * is remote. The states are (unknown, is not remote, is remote).
+     * To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     * To read whether the span is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     * When creating span messages, if the message is logically forwarded from another source
+     * with an equivalent flags fields (i.e., usually another OTLP span message), the field SHOULD
+     * be copied as-is. If creating from a source that does not have an equivalent flags field
+     * (such as a runtime representation of an OpenTelemetry span), the high 22 bits MUST
+     * be set to zero.
+     * Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     * [Optional].
+     *
+     * Generated from protobuf field <code>fixed32 flags = 16;</code>
+     * @return int
+     */
+    public function getFlags()
+    {
+        return $this->flags;
+    }
+
+    /**
+     * Flags, a bit field.
+     * Bits 0-7 (8 least significant bits) are the trace flags as defined in W3C Trace
+     * Context specification. To read the 8-bit W3C trace flag, use
+     * `flags & SPAN_FLAGS_TRACE_FLAGS_MASK`.
+     * See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+     * Bits 8 and 9 represent the 3 states of whether a span's parent
+     * is remote. The states are (unknown, is not remote, is remote).
+     * To read whether the value is known, use `(flags & SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK) != 0`.
+     * To read whether the span is remote, use `(flags & SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK) != 0`.
+     * When creating span messages, if the message is logically forwarded from another source
+     * with an equivalent flags fields (i.e., usually another OTLP span message), the field SHOULD
+     * be copied as-is. If creating from a source that does not have an equivalent flags field
+     * (such as a runtime representation of an OpenTelemetry span), the high 22 bits MUST
+     * be set to zero.
+     * Readers MUST NOT assume that bits 10-31 (22 most significant bits) will be zero.
+     * [Optional].
+     *
+     * Generated from protobuf field <code>fixed32 flags = 16;</code>
+     * @param int $var
+     * @return $this
+     */
+    public function setFlags($var)
+    {
+        GPBUtil::checkUint32($var);
+        $this->flags = $var;
 
         return $this;
     }
@@ -513,8 +599,8 @@ class Span extends \Google\Protobuf\Internal\Message
      * like server name can be set using the resource API. Examples of attributes:
      *     "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
      *     "/http/server_latency": 300
-     *     "abc.com/myattribute": true
-     *     "abc.com/score": 10.239
+     *     "example.com/myattribute": true
+     *     "example.com/score": 10.239
      * The OpenTelemetry API specification further restricts the allowed value types:
      * https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute
      * Attribute keys MUST be unique (it is not allowed to have more than one
@@ -533,8 +619,8 @@ class Span extends \Google\Protobuf\Internal\Message
      * like server name can be set using the resource API. Examples of attributes:
      *     "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
      *     "/http/server_latency": 300
-     *     "abc.com/myattribute": true
-     *     "abc.com/score": 10.239
+     *     "example.com/myattribute": true
+     *     "example.com/score": 10.239
      * The OpenTelemetry API specification further restricts the allowed value types:
      * https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute
      * Attribute keys MUST be unique (it is not allowed to have more than one

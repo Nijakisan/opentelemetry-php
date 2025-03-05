@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace OpenTelemetry\Tests\Integration\SDK;
 
-use AssertWell\PHPUnitGlobalState\EnvironmentVariables;
+use OpenTelemetry\API\Common\Time\ClockInterface;
+use OpenTelemetry\API\Common\Time\TestClock;
 use OpenTelemetry\API\Metrics as API;
 use OpenTelemetry\API\Metrics\Noop\NoopMeter;
 use OpenTelemetry\API\Metrics\ObserverInterface;
 use OpenTelemetry\SDK\Common\Attribute\Attributes;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScope;
 use OpenTelemetry\SDK\Common\Instrumentation\InstrumentationScopeFactory;
-use OpenTelemetry\SDK\Common\Time\ClockInterface;
 use OpenTelemetry\SDK\Metrics\Data\Metric;
 use OpenTelemetry\SDK\Metrics\Data\NumberDataPoint;
 use OpenTelemetry\SDK\Metrics\Data\Sum;
@@ -27,26 +27,20 @@ use OpenTelemetry\SDK\Metrics\MetricSourceRegistryInterface;
 use OpenTelemetry\SDK\Metrics\StalenessHandler\ImmediateStalenessHandlerFactory;
 use OpenTelemetry\SDK\Metrics\View\CriteriaViewRegistry;
 use OpenTelemetry\SDK\Resource\ResourceInfoFactory;
-use OpenTelemetry\Tests\Unit\SDK\Util\TestClock;
+use OpenTelemetry\Tests\TestState;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @coversNothing
- */
+#[CoversNothing]
 final class MeterProviderTest extends TestCase
 {
-    use EnvironmentVariables;
-
-    public function tearDown(): void
-    {
-        self::restoreEnvironmentVariables();
-    }
+    use TestState;
 
     public function test_weak_asynchronous_observer_is_released_when_instance_out_of_scope(): void
     {
         $clock = new TestClock();
         $exporter = new InMemoryExporter();
-        $reader = new ExportingReader($exporter, $clock);
+        $reader = new ExportingReader($exporter);
         $meterProvider = $this->meterProvider($reader, $clock);
 
         /** @noinspection PhpUnusedLocalVariableInspection */
@@ -56,7 +50,7 @@ final class MeterProviderTest extends TestCase
                 $meterProvider
                     ->getMeter('test')
                     ->createObservableUpDownCounter('test')
-                    ->observe(fn (ObserverInterface $observer) => $observer->observe($this->count()), true);
+                    ->observe(fn (ObserverInterface $observer) => $observer->observe($this->count()));
             }
             public function count(): int
             {
@@ -95,7 +89,7 @@ final class MeterProviderTest extends TestCase
         self::setEnvironmentVariable('OTEL_SDK_DISABLED', 'true');
         $clock = new TestClock();
         $exporter = new InMemoryExporter();
-        $reader = new ExportingReader($exporter, $clock);
+        $reader = new ExportingReader($exporter);
         $meterProvider = $this->meterProvider($reader, $clock);
 
         $this->assertInstanceOf(NoopMeter::class, $meterProvider->getMeter('test'));
